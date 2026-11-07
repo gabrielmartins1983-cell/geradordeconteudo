@@ -337,7 +337,7 @@ with tab2:
                         - titulo: Um título interno claro e profissional (máximo 80 caracteres).
                         - destaque: Uma chamada comercial de impacto em LETRAS MAIÚSCULAS para o Story (máximo 40 caracteres).
                         - resumo: Um resumo objetivo e elegante de 1 ou 2 frases explicativas (máximo 150 caracteres).
-                        - gancho: Um gancho ou chamada rápida para engajamento.
+                        - gancho: Uma pergunta ou chamada rápida para engajamento.
                         - fonte: Nome da fonte original da notícia.
 
                         Texto base: {input_texto_ia}
