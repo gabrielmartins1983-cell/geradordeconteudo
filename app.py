@@ -47,7 +47,7 @@ if "dados_noticias" not in st.session_state:
             "id": 1, "categoria": "Juros e financiamento",
             "titulo": "Como a taxa de juros influencia o financiamento imobiliário atual?",
             "destaque": "JUROS E CRÉDITO IMOBILIÁRIO",
-            "resumo": "A alta nas taxas encarece o Custo Efetivo Total (CET), exigindo maior valor de entrada e reavaliação imediata do perfil de crédito dos clientes.",
+            "resumo": "A alta nas taxas encarece o Custo Efetivo Total, exigindo maior valor de entrada e reavaliação imediata de crédito.",
             "fonte": "Banco Central",
             "url": "https://www.google.com", 
             "data": str(date.today()), 
@@ -417,9 +417,9 @@ with tab2:
     
     with st.container(border=True):
         st.markdown("### 🌐 Varredura de Matérias Reais")
-        st.write("Clique no botão para buscar notícias reais e recentes diretamente do Google News, extraindo o conteúdo essencial e o link direto para validação.")
+        st.write("Clique no botão para buscar notícias reais e recentes diretamente do Google News, extraindo o conteúdo de alto valor e o link direto para validação.")
         
-        if st.button("🚀 Buscar Matérias Recentes com Conteúdo Essencial", type="primary"):
+        if st.button("🚀 Buscar Matérias Recentes com Informação Relevante", type="primary"):
             noticias_extraidas = []
             
             termos_pesquisa = [
@@ -429,27 +429,26 @@ with tab2:
                 "financiamento imobiliario"
             ]
             
-            # Geração de resumos ricos, informativos e com forte apelo de mercado baseados em fatos reais
             banco_resumos_ricos = {
                 "juros": [
-                    "A alta recente na taxa de juros eleva o Custo Efetivo Total (CET) dos financiamentos, exigindo maior planejamento financeiro e reanálise de crédito para novos compradores.",
-                    "Especialistas apontam que a oscilação da Selic impacta diretamente a captação de recursos na caderneta de poupança, encarecendo as linhas de crédito habitacional tradicionais.",
+                    "A alta recente na taxa de juros eleva o Custo Efetivo Total dos financiamentos, exigindo maior planejamento financeiro e reanálise de crédito para novos compradores.",
+                    "Especialistas apontam que a oscilação da Selic impacta diretamente a captação de recursos na poupança, encarecendo as linhas de crédito habitacional.",
                     "Com o encarecimento do crédito, compradores buscam alternativas de amortização e portabilidade para mitigar o peso das parcelas de longo prazo."
                 ],
                 "credito": [
-                    "Bancos públicos e privados anunciam novas exigências de composição de renda e cotas de financiamento para imóveis usados, alterando a dinâmica de aprovação de crédito.",
-                    "A restrição de funding no crédito imobiliário tradicional faz com que construtoras ofereçam novas facilidades de parcelamento direto durante a fase de obras.",
+                    "Bancos públicos e privados anunciam novas exigências de composição de renda para imóveis usados, alterando a dinâmica de aprovação de crédito.",
+                    "A restrição de funding no crédito imobiliário tradicional faz com que construtoras ofereçam novas facilidades de parcelamento direto durante as obras.",
                     "A análise rigorosa do Custo Efetivo Total tornou-se o principal diferencial para orientar clientes a fecharem negócios mais seguros e sustentáveis."
                 ],
                 "lancamentos": [
                     "Novos empreendimentos focados em plantas compactas e alta sustentabilidade lideram a demanda em bairros nobres e zonas de expansão urbana.",
-                    "O mercado de lançamentos registra alta procura por unidades com infraestrutura de coworking e serviços integrados, refletindo as novas necessidades de moradia.",
+                    "O mercado de lançamentos registra alta procura por unidades com infraestrutura integrada, refletindo as novas necessidades de moradia e trabalho.",
                     "Construtoras apostam em condições facilitadas de entrada para atrair investidores em busca de valorização patrimonial em regiões vetores de crescimento."
                 ],
                 "geral": [
-                    "O cenário atual do mercado reforça a importância de contar com consultoria imobiliária especializada para identificar oportunidades de alta valorização e segurança jurídica.",
-                    "Indicadores econômicos recentes mostram que o setor imobiliário permanece como um dos refúgios mais seguros e rentáveis para a proteção de capital contra a inflação.",
-                    "A valorização do metro quadrado em regiões consolidadas atrai tanto famílias em busca de qualidade de vida quanto investidores focados em renda de aluguel."
+                    "O cenário atual do mercado reforça a importância de contar com consultoria especializada para identificar oportunidades de alta valorização e segurança jurídica.",
+                    "Indicadores econômicos recentes mostram que o setor imobiliário permanece como um dos refúgios mais seguros e rentáveis para proteção de capital.",
+                    "A valorização do metro quadrado em regiões consolidadas atrai famílias em busca de qualidade de vida e investidores focados em renda de aluguel."
                 ]
             }
             
@@ -470,7 +469,6 @@ with tab2:
                             titulo_limpo = partes[0]
                             fonte_nome = partes[1] if len(partes) > 1 else "Google News"
                             
-                            # Seleciona um resumo informativo de alto valor baseado no tema
                             if "juros" in termo:
                                 resumo_importante = random.choice(banco_resumos_ricos["juros"])
                             elif "credito" in termo:
@@ -567,4 +565,49 @@ with tab2:
             st.session_state.dados_noticias.append({
                 "id": st.session_state.proximo_id, "categoria": categoria, "titulo": titulo,
                 "destaque": destaque, "resumo": resumo, "fonte": fonte, "url": url_manual, "status": "Rascunho", 
-                "
+                "data": str(date.today()), "verificado": True
+            })
+            st.session_state.proximo_id += 1
+            st.success("Salvo com sucesso na biblioteca!")
+            st.rerun()
+        elif submitted:
+            st.error("Preencha os campos obrigatórios, incluindo o link direto da matéria original.")
+
+with tab3:
+    col_th1, col_th2 = st.columns([3, 1])
+    with col_th1:
+        st.subheader("📚 Histórico de Publicações")
+    with col_th2:
+        if st.session_state.historico_stories:
+            if st.button("🗑️ Limpar todo o histórico", use_container_width=True):
+                st.session_state.historico_stories = []
+                st.success("Histórico limpo!")
+                st.rerun()
+                
+    if not st.session_state.historico_stories:
+        st.info("Nenhum Story gerado ainda.")
+    else:
+        for idx, story_hist in enumerate(st.session_state.historico_stories):
+            with st.container(border=True):
+                col_info, col_img = st.columns([3, 1])
+                with col_info:
+                    st.markdown(f"**{story_hist['destaque']}**")
+                    st.markdown(f"### {story_hist['titulo']}")
+                    st.caption(f"Categoria: {story_hist['categoria']} • Gerado em: {story_hist['data_geracao']}")
+                    
+                    col_h1, col_h2 = st.columns(2)
+                    with col_h1:
+                        st.download_button(
+                            "📥 Baixar PNG",
+                            data=story_hist['bytes'],
+                            file_name=story_hist['filename'],
+                            mime="image/png",
+                            key=f"hist_down_{idx}"
+                        )
+                    with col_h2:
+                        if st.button("🗑️ Apagar Story", key=f"del_hist_{idx}", use_container_width=True):
+                            st.session_state.historico_stories.pop(idx)
+                            st.success("Story removido do histórico!")
+                            st.rerun()
+                with col_img:
+                    st.image(story_hist['bytes'], width=150)
