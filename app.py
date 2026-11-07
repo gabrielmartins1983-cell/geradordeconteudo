@@ -111,11 +111,9 @@ def wrap_lines(draw, text, fnt, max_width):
     return lines
 
 def carregar_imagem_contexto(item_id, categoria):
-    # Base do link isolada para evitar linhas longas no editor
     base = "https://images.unsplash.com/photo-"
     fim = "?q=80&w=1080"
     
-    # Apenas os códigos das fotos para que as linhas fiquem curtas
     curadoria = {
         "Juros e financiamento": ["1486406146926-c627a92ad1ab", "1526304640581-d334cdbbf45e"],
         "Bancos e crédito": ["1501167786227-4cba60f6d58f", "1601597111158-2fceff292cdc"],
@@ -283,14 +281,14 @@ with st.sidebar:
     else:
         dados_atuais = st.session_state.corretores_equipa[selecao_edicao]
         with st.form("form_edita_corretor"):
-            edit_nome = st.text_input("Nome", value=selecao_edicao)
+            edit_nome = st.text_input("Nome do Corretor", value=selecao_edicao)
             edit_cargo = st.text_input("Cargo", value=dados_atuais["cargo"])
             edit_insta = st.text_input("Instagram", value=dados_atuais["insta"])
             
-            col_fe1, col_fe2 = st.columns(2)
-            with col_fe1:
-                salvar_edicao = st.form_submit_button("💾 Gravar Alterações", use_container_width=True)
-            with col_fe2:
+            col_e1, col_e2 = st.columns(2)
+            with col_e1:
+                salvar_edicao = st.form_submit_button("💾 Gravar", use_container_width=True)
+            with col_e2:
                 excluir_corr = st.form_submit_button("🗑️ Excluir", use_container_width=True)
                 
             if salvar_edicao:
@@ -303,10 +301,10 @@ with st.sidebar:
             if excluir_corr:
                 if len(st.session_state.corretores_equipa) > 1:
                     del st.session_state.corretores_equipa[selecao_edicao]
-                    st.success("Corretor removido!")
+                    st.success("Corretor removido com sucesso!")
                     st.rerun()
                 else:
-                    st.error("Mantenha pelo menos um corretor.")
+                    st.error("Deve manter pelo menos um corretor.")
 
     st.divider()
     st.markdown("### 🎯 Corretores nos Stories")
@@ -444,33 +442,4 @@ with tab2:
     st.divider()
     st.markdown("#### ✍️ Cadastro Manual:")
     with st.form("new_item", clear_on_submit=False):
-        categoria = st.selectbox("Categoria", ["Juros e financiamento", "Bancos e crédito", "Lançamentos imobiliários"])
-        titulo = st.text_input("Título")
-        destaque = st.text_input("Chamada (MAIÚSCULAS)")
-        resumo = st.text_area("Resumo")
-        fonte = st.text_input("Fonte")
-        submitted = st.form_submit_button("Salvar na biblioteca", type="primary")
-        
-        if submitted and titulo and destaque:
-            st.session_state.dados_noticias.append({
-                "id": st.session_state.proximo_id, "categoria": categoria, "titulo": titulo,
-                "destaque": destaque, "resumo": resumo, "fonte": fonte, "status": "Rascunho", 
-                "data": str(date.today())
-            })
-            st.session_state.proximo_id += 1
-            st.success("Salvo!")
-            st.rerun()
-
-with tab3:
-    st.subheader("📚 Histórico de Publicações")
-    if not st.session_state.historico_stories:
-        st.info("Nenhum Story gerado ainda.")
-    else:
-        for idx, story_hist in enumerate(st.session_state.historico_stories):
-            with st.container(border=True):
-                col_info, col_img = st.columns([3, 1])
-                with col_info:
-                    st.markdown(f"**{story_hist['destaque']}**")
-                    st.markdown(f"### {story_hist['titulo']}")
-                with col_img:
-                    st.image(story_hist['bytes'], width=150)
+        categoria = st.selectbox("Categoria", ["Juros e financiamento", "Bancos e crédito", "Lanç
