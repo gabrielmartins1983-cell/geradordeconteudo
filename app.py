@@ -38,7 +38,7 @@ if "dados_noticias" not in st.session_state:
             "categoria": "Juros e financiamento",
             "titulo": "Painel de Inteligência Imobiliária BeSmart - Inicie a varredura dinâmica",
             "destaque": "PAINEL ADMINISTRATIVO",
-            "resumo": "Utilize a aba de varredura para capturar notícias recentes diretamente de portais de referência em tempo real.",
+            "resumo": "Utilize a aba ao lado para executar a varredura diária na imprensa e capturar notícias recentes com links diretos.",
             "fonte": "Sistema BeSmart",
             "url": "https://www.google.com", 
             "data": str(date.today()), 
@@ -318,7 +318,7 @@ c2.metric("Rascunhos", sum(1 for i in lista_atual if i.get("status") == "Rascunh
 c3.metric("Aprovados", sum(1 for i in lista_atual if i.get("status") == "Aprovado"))
 c4.metric("Stories gerados", len(st.session_state.historico_stories))
 
-tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "🔄 Varredura em Sites Referência", "📚 Histórico & Métricas"])
+tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "🔄 Varredura na Imprensa", "📚 Histórico & Métricas"])
 
 with tab1:
     col_t1, col_t2 = st.columns([3, 1])
@@ -406,24 +406,26 @@ with tab1:
                             st.rerun()
 
 with tab2:
-    st.subheader("Varredura em Sites Referência (Mercado Imobiliário e Financeiro)")
+    st.subheader("Varredura Dinâmica em Tempo Real (Mercado Imobiliário e Financeiro)")
     
     with st.container(border=True):
-        st.markdown("### 🌐 Coleta Segmentada de Portais Especializados")
-        st.write("Clique abaixo para buscar matérias recentes em portais referência (Valor Econômico, Exame, InfoMoney, Agência Brasil e CNN Brasil), garantindo links diretos e específicos para cada notícia.")
+        st.markdown("### 🌐 Coleta Ampla de Pautas na Imprensa")
+        st.write("Clique abaixo para buscar matérias recentes em portais de notícias e finanças, garantindo links diretos e específicos para cada artigo.")
         
-        if st.button("🔄 Executar Varredura em Sites Referência", type="primary"):
+        if st.button("🔄 Executar Varredura Dinâmica de Notícias", type="primary"):
             noticias_extraidas = []
             
-            feeds_referencia = [
-                ("https://news.google.com/rss/search?q=site:infomoney.com.br+imoveis+OR+financiamento+OR+fundos+imobiliarios&hl=pt-BR&gl=BR&ceid=BR:pt-415", "InfoMoney"),
-                ("https://news.google.com/rss/search?q=site:exame.com+mercado+imobiliario+OR+imoveis+OR+juros&hl=pt-BR&gl=BR&ceid=BR:pt-415", "Exame"),
-                ("https://news.google.com/rss/search?q=site:valor.globo.com+imoveis+OR+credito+imobiliario&hl=pt-BR&gl=BR&ceid=BR:pt-415", "Valor Econômico"),
-                ("https://news.google.com/rss/search?q=site:agenciabrasil.ebc.com.br+imobiliario+OR+habitacao+OR+juros&hl=pt-BR&gl=BR&ceid=BR:pt-415", "Agência Brasil"),
-                ("https://news.google.com/rss/search?q=site:cnnbrasil.com.br+imoveis+OR+mercado+imobiliario&hl=pt-BR&gl=BR&ceid=BR:pt-415", "CNN Brasil")
+            # Termos de busca amplos para abranger todo o ecossistema imobiliário e financeiro nacional
+            termos_pesquisa = [
+                "mercado imobiliario",
+                "lancamentos imobiliarios",
+                "financiamento imobiliario juros",
+                "setor imobiliario economia",
+                "fundos imobiliarios FIFI FII"
             ]
             
-            for url_rss, nome_veiculo in feeds_referencia:
+            for termo in termos_pesquisa:
+                url_rss = f"https://news.google.com/rss/search?q={urllib.parse.quote_plus(termo)}&hl=pt-BR&gl=BR&ceid=BR:pt-415"
                 try:
                     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
                     req = urllib.request.Request(url_rss, headers=headers)
@@ -432,7 +434,8 @@ with tab2:
                         root = ET.fromstring(xml_data)
                         
                         for item in root.findall('.//item'):
-                            link_original = item.find('link').text if item.find('link') is not None else ""
+                            link_original = item.find('link').text if item.find('link'] is not None else ""
+                            # Filtro estrito para garantir link direto de artigo específico e descartar homepages
                             if not link_original or link_original.count('/') < 4 or 'google.com' in link_original:
                                 continue
                                 
@@ -442,13 +445,14 @@ with tab2:
                             
                             partes = titulo_original.split(" - ")
                             titulo_limpo = partes[0]
+                            nome_veiculo = partes[1] if len(partes) > 1 else "Imprensa Nacional"
                             
-                            resumo_real = f"Análise publicada por {nome_veiculo} sobre tendências, juros e movimentações do mercado imobiliário."
+                            resumo_real = f"Cobertura jornalística recente abordando {termo}, com análises de tendências e cenários do setor."
                             if len(descricao) > 30 and "<" not in descricao:
                                 resumo_real = descricao.strip()
 
                             noticias_extraidas.append({
-                                "categoria": "Investimento imobiliário" if "fundos" in titulo_limpo.lower() else "Juros e financiamento",
+                                "categoria": "Investimento imobiliário" if "fundos" in termo else "Juros e financiamento",
                                 "titulo": titulo_limpo,
                                 "destaque": titulo_limpo.upper(),
                                 "resumo": resumo_real,
@@ -459,6 +463,7 @@ with tab2:
                 except Exception:
                     continue
             
+            # Remove duplicadas por URL
             vistos = set()
             unicas = []
             for n in noticias_extraidas:
@@ -466,10 +471,10 @@ with tab2:
                     vistos.add(n['url'])
                     unicas.append(n)
             
-            st.session_state.noticias_descobertas = unicas[:20]
+            st.session_state.noticias_descobertas = unicas[:25]
             
             if st.session_state.noticias_descobertas:
-                st.success(f"{len(st.session_state.noticias_descobertas)} matérias reais extraídas de sites de referência com links diretos!")
+                st.success(f"{len(st.session_state.noticias_descobertas)} matérias reais extraídas com links diretos!")
             else:
                 st.warning("Nenhuma matéria recente capturada neste ciclo. Utilize o cadastro manual abaixo para registrar novas pautas.")
 
@@ -478,7 +483,7 @@ with tab2:
         for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
             with st.container(border=True):
                 st.markdown(f"**[{n_item.get('categoria', '')}]** {n_item.get('titulo', '')}")
-                st.caption(f"Destaque: {n_item.get('destaque', '')} | Veículo de Referência: {n_item.get('fonte', '')} | Publicado em: {n_item.get('data', '')}")
+                st.caption(f"Destaque: {n_item.get('destaque', '')} | Veículo: {n_item.get('fonte', '')} | Publicado em: {n_item.get('data', '')}")
                 st.write(f"**Resumo:** {n_item.get('resumo', '')}")
                 if n_item.get('url'):
                     st.markdown(f"🔗 **[Abrir matéria original direta]({n_item.get('url')})**")
@@ -490,7 +495,7 @@ with tab2:
                         "titulo": n_item.get('titulo', ''),
                         "destaque": n_item.get('destaque', ''),
                         "resumo": n_item.get('resumo', ''),
-                        "fonte": n_item.get('fonte', 'Imprensa Especializada'),
+                        "fonte": n_item.get('fonte', 'Imprensa'),
                         "url": n_item.get('url', 'https://www.google.com'),
                         "data": str(date.today()),
                         "regiao": "Brasil",
