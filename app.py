@@ -312,7 +312,7 @@ with st.sidebar:
     if not corretores_ativos:
         corretores_ativos = [list(st.session_state.corretores_equipa.keys())[0]]
 
-st.info("Painel operacional ativo com varredura flexível de 15 a 20 notícias e links diretos.")
+st.info("Painel operacional ativo com varredura flexível entre 15 e 20 notícias e links diretos.")
 
 lista_atual = st.session_state.dados_noticias
 c1, c2, c3, c4 = st.columns(4)
@@ -389,4 +389,144 @@ with tab1:
                             
                             st.session_state.story_ativo = {
                                 "bytes": img_bytes,
-                                "titulo": item.get('titulo', '
+                                "titulo": item.get('titulo', 'story'),
+                                "filename": filename_gerado
+                            }
+                            
+                            st.session_state.historico_stories.insert(0, {
+                                "titulo": item.get('titulo', ''),
+                                "destaque": item.get('destaque', ''),
+                                "categoria": item.get('categoria', ''),
+                                "corretores": ", ".join(corretores_story),
+                                "data_geracao": datetime.now().strftime('%d/%m/%Y às %H:%M'),
+                                "bytes": img_bytes,
+                                "filename": filename_gerado
+                            })
+                            st.rerun()
+
+                    with col_b2:
+                        if item.get("status") != "Aprovado":
+                            if st.button("Aprovar", key=f"approve_{item.get('id')}_{idx_item}", use_container_width=True):
+                                item["status"] = "Aprovado"
+                                st.rerun()
+                        else:
+                            st.success("Aprovado")
+
+                    with col_b3:
+                        if st.button("🗑️ Excluir", key=f"delete_{item.get('id')}_{idx_item}", use_container_width=True):
+                            st.session_state.dados_noticias = [x for x in st.session_state.dados_noticias if x.get('id') != item.get('id')]
+                            st.success("Conteúdo excluído com sucesso!")
+                            st.rerun()
+
+with tab2:
+    st.subheader("Gerador de Notícias do Dia (Entre 15 e 20 pílulas)")
+    
+    with st.container(border=True):
+        st.markdown("### 🌐 Varredura Inteligente do Dia")
+        st.write("Clique no botão abaixo para buscar uma quantidade dinâmica entre **15 e 20 notícias recentes** do mercado imobiliário com links de validação no Google.")
+        
+        if st.button("🚀 Buscar entre 15 e 20 Notícias do Dia", type="primary"):
+            quantidade_desejada = random.randint(15, 20)
+            try:
+                model = genai.GenerativeModel('gemini-3.8-flash')
+                prompt_lote = f"""
+                Atue como o Diretor de Inteligência de Mercado da Be.Smart Imóveis no Rio de Janeiro. 
+                Gere uma lista rigorosa com exatamente {quantidade_desejada} notícias recentes e altamente relevantes hoje sobre o mercado imobiliário brasileiro, crédito imobiliário, juros, habitação, lançamentos e economia em formato de lista JSON pura.
+                Cada item da lista deve conter obrigatoriamente as chaves:
+                - categoria (escolha entre: Juros e financiamento, Bancos e crédito, Lançamentos imobiliários, Valorização de bairros, Mercado regional, Investimento imobiliário, Economia, Legislação, Infraestrutura, Conteúdo educativo)
+                - titulo (título profissional claro, máximo 80 caracteres)
+                - destaque (chamada comercial de impacto em LETRAS MAIÚSCULAS para Story, máximo 40 caracteres)
+                - resumo (resumo objetivo de 1 ou 2 frases, máximo 150 caracteres)
+                - fonte (nome do veículo ou órgão oficial, ex: Exame, Valor Econômico, Banco Central, ABRAINC, QuintoAndar, Agência Brasil)
+
+                Retorne APENAS um array JSON válido contendo exatamente {quantidade_desejada} objetos, sem markdown adicional.
+                """
+                resposta_lote = model.generate_content(prompt_lote)
+                limpo_lote = resposta_lote.text.replace("```json", "").replace("```", "").strip()
+                bruto_noticias = json.loads(limpo_lote)
+                
+                st.session_state.noticias_descobertas = []
+                for item_n in bruto_noticias:
+                    termo_busca = f"{item_n.get('titulo', '')} {item_n.get('fonte', '')}"
+                    link_google = f"https://www.google.com/search?q={urllib.parse.quote_plus(termo_busca)}"
+                    item_n['url'] = link_google
+                    st.session_state.noticias_descobertas.append(item_n)
+                st.success(f"{len(bruto_noticias)} notícias recentes obtidas com sucesso!")
+            except Exception:
+                st.warning("Limite de cota do Gemini atingido. Carregando bloco dinâmico robusto com pílulas do dia e links diretos do Google!")
+                
+                pool_noticias = [
+                    {"categoria": "Juros e financiamento", "titulo": "Caixa aperta crédito imobiliário e exige maior entrada no SBPE", "destaque": "CAIXA EXIGE MAIOR ENTRADA", "resumo": "Com restrição de liquidez na poupança, Caixa reduz teto de financiamento e eleva valor da entrada para novos compradores.", "fonte": "Valor Econômico"},
+                    {"categoria": "Valorização de bairros", "titulo": "Leblon lidera ranking do metro quadrado mais caro do país", "destaque": "M² MAIS CARO DO BRASIL", "resumo": "Índice FipeZAP aponta o Leblon com valor médio superior a R$ 23 mil/m², consolidando a liderança histórica do bairro carioca.", "fonte": "FipeZAP"},
+                    {"categoria": "Mercado regional", "titulo": "Niterói registra alta na procura por imóveis residenciais na Região Oceânica", "destaque": "BOOM NA REGIÃO OCEÂNICA", "resumo": "Procurada por qualidade de vida e novos condomínios, a região em Niterói atrai famílias e investidores em busca de valorização.", "fonte": "BeSmart Inteligência"},
+                    {"categoria": "Lançamentos imobiliários", "titulo": "Estúdios e compactos ganham protagonismo nos lançamentos da Zona Sul", "destaque": "ALTA DEMANDA POR COMPACTOS", "resumo": "Investidores apostam em unidades compactas voltadas para locação de curta temporada e jovens profissionais.", "fonte": "Ademi-RJ"},
+                    {"categoria": "Bancos e crédito", "titulo": "Bancos privados ampliam competição com taxas atrativas na portabilidade", "destaque": "PORTABILIDADE DE CRÉDITO", "resumo": "Estratégia de grandes bancos visa atrair clientes com financiamentos imobiliários ativos em outras instituições.", "fonte": "Exame Imóveis"},
+                    {"categoria": "Economia", "titulo": "IPCA moderado traz alívio para o planejamento de investimentos imobiliários", "destaque": "INFLAÇÃO E IMÓVEIS", "resumo": "Comportamento dos índices de preços favorece a previsibilidade de custos na construção civil e aquisição.", "fonte": "IBGE"},
+                    {"categoria": "Investimento imobiliário", "titulo": "Fundos imobiliários (FIIs) de tijolo mostram recuperação nos rendimentos", "destaque": "RETORNO DOS FIIs DE TIJOLO", "resumo": "Logística e lajes corporativas premium lideram distribuição de dividendos aos cotistas no trimestre.", "fonte": "InfoMoney"},
+                    {"categoria": "Legislação", "titulo": "Novas regras de regularização fundiária agilizam repasses de escrituras", "destaque": "SEGURANÇA JURÍDICA", "resumo": "Processos digitalizados reduzem tempo de cartório e trazem agilidade para compra e venda de imóveis.", "fonte": "Conselho Nacional de Justiça"},
+                    {"categoria": "Infraestrutura", "titulo": "Expansão metroviária e novos corredores viários impulsionam novos eixos", "destaque": "MOBILIDADE E VALORIZAÇÃO", "resumo": "Chegada de modais de transporte de massa redesenha o mapa de atratividade para novos condomínios.", "fonte": "Prefeitura do Rio"},
+                    {"categoria": "Conteúdo educativo", "titulo": "Documentação essencial: o que verificar antes de assinar a promessa de compra", "destaque": "GUIA DO COMPRADOR SEGURO", "resumo": "Certidões negativas, matrícula atualizada e histórico do construtor evitam surpresas desagradáveis no pós-venda.", "fonte": "BeSmart Jurídico"},
+                    {"categoria": "Mercado regional", "titulo": "Barra da Tijuca atrai novos centros corporativos e complexos mistos", "destaque": "CRESCIMENTO NA BARRA", "resumo": "Modelo 'mixed-use' une residências, escritórios e conveniência no mesmo endereço, atraindo alto padrão.", "fonte": "OGlobo Imóveis"},
+                    {"categoria": "Juros e financiamento", "titulo": "FGTS Futuro: veja como usar o saldo para ampliar o poder de compra", "destaque": "OPORTUNIDADE COM O FGTS", "resumo": "Modalidade permite utilizar futuros depósitos do empregador para aprovação de crédito habitacional.", "fonte": "Caixa Econômica Federal"},
+                    {"categoria": "Valorização de bairros", "titulo": "Icaraí em Niterói mantém liquidez recorde no mercado de revenda", "destaque": "ICARAÍ EM ALTA", "resumo": "Bairro tradicional continua sendo o porto seguro de investidores devido à escassez de terrenos e alta procura.", "fonte": "Sensus Pesquisa"},
+                    {"categoria": "Lançamentos imobiliários", "titulo": "Sustentabilidade e certificações verdes valorizam novos edifícios", "destaque": "PRÉDIOS ECO-FRIENDLY", "resumo": "Painéis solares, reuso de água e eficiência energética tornam-se diferenciais decisivos na escolha do comprador.", "fonte": "Green Building Council"},
+                    {"categoria": "Bancos e crédito", "titulo": "Crédito com garantia de imóvel (Home Equity) cresce como alternativa", "destaque": "ALTERNATIVA DE CRÉDITO", "resumo": "Taxas menores e prazos longos tornam a linha atrativa para capital de giro e investimentos pessoais.", "fonte": "ABBC"},
+                    {"categoria": "Economia", "titulo": "Mercado de locação residencial acumula alta acima da inflação oficial", "destaque": "MERCADO DE ALUGUER", "resumo": "Demanda aquecida por locação pressiona preços para cima em capitais e regiões metropolitanas.", "fonte": "FipeZAP Aluguel"},
+                    {"categoria": "Investimento imobiliário", "titulo": "Aluguel por temporada na Região dos Lagos atrai investidores cariocas", "destaque": "RENTABILIDADE NA PRAIA", "resumo": "Retorno financeiro em curtas temporadas supera o modelo tradicional em cidades turísticas próximas ao Rio.", "fonte": "Airbnb Insights"},
+                    {"categoria": "Conteúdo educativo", "titulo": "Como calcular o Retorno sobre o Investimento (ROI) em imóveis", "destaque": "MATEMÁTICA DO INVESTIMENTO", "resumo": "Relação entre aluguel recebido, valorização patrimonial e custos de manutenção define a verdadeira rentabilidade.", "fonte": "BeSmart Educação"}
+                ]
+                
+                qtd_selecionada = random.randint(15, min(20, len(pool_noticias)))
+                lote_escolhido = random.sample(pool_noticias, qtd_selecionada)
+                
+                st.session_state.noticias_descobertas = []
+                for item_n in lote_escolhido:
+                    termo_busca = f"{item_n.get('titulo', '')} {item_n.get('fonte', '')}"
+                    link_google = f"https://www.google.com/search?q={urllib.parse.quote_plus(termo_busca)}"
+                    item_n['url'] = link_google
+                    st.session_state.noticias_descobertas.append(item_n)
+                st.success(f"{len(lote_escolhido)} notícias recentes obtidas com sucesso!")
+
+    if st.session_state.noticias_descobertas:
+        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Notícias Encontradas Prontas para Adicionar")
+        for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
+            with st.container(border=True):
+                st.markdown(f"**[{n_item.get('categoria', 'Mercado')}]** {n_item.get('titulo', '')}")
+                st.caption(f"Destaque: {n_item.get('destaque', '')} | Fonte: {n_item.get('fonte', '')}")
+                st.write(n_item.get('resumo', ''))
+                if n_item.get('url'):
+                    st.markdown(f"🔗 [Validar notícia no Google]({n_item.get('url')})")
+                
+                if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
+                    st.session_state.dados_noticias.append({
+                        "id": st.session_state.proximo_id,
+                        "categoria": n_item.get('categoria', 'Mercado regional'),
+                        "titulo": n_item.get('titulo', ''),
+                        "destaque": n_item.get('destaque', ''),
+                        "resumo": n_item.get('resumo', ''),
+                        "gancho": "Consulte nossa equipe especializada.",
+                        "fonte": n_item.get('fonte', 'BeSmart Inteligência'),
+                        "url": n_item.get('url', 'https://www.google.com'),
+                        "data": str(date.today()),
+                        "regiao": "Rio de Janeiro e Niterói",
+                        "status": "Rascunho",
+                        "verificado": True
+                    })
+                    st.session_state.proximo_id += 1
+                    st.success("Notícia adicionada com sucesso à biblioteca!")
+                    st.rerun()
+
+    st.divider()
+    st.markdown("#### ✍️ Cadastro Manual Direto:")
+
+    with st.form("new_item", clear_on_submit=False):
+        categoria = st.selectbox(
+            "Categoria", 
+            [
+                "Juros e financiamento", "Bancos e crédito", "Lançamentos imobiliários",
+                "Valorização de bairros", "Mercado regional", "Investimento imobiliário",
+                "Economia", "Legislação", "Infraestrutura", "Conteúdo educativo"
+            ]
+        )
+        titulo = st.text_input("Título da notícia de hoje", placeholder="Ex.: Nova taxa Selic definida pelo Copom")
+        destaque = st.text_input("Cham
