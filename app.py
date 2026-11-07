@@ -46,10 +46,13 @@ if "dados_noticias" not in st.session_state:
             "id": 1, "categoria": "Juros e financiamento",
             "titulo": "Como a taxa de juros influencia o financiamento imobiliário atual?",
             "destaque": "JUROS E CRÉDITO IMOBILIÁRIO",
-            "resumo": "As condições correntes de crédito impactam diretamente o Custo Efetivo Total (CET) e o planejamento estratégico dos compradores.",
-            "fonte": "Banco Central / Mercado",
-            "url": "https://www.google.com/search?q=financiamento+imobiliario+taxa+juros+hoje", "data": str(date.today()), "regiao": "Brasil",
-            "status": "Rascunho", "verificado": True
+            "resumo": "As condições correntes de crédito impactam diretamente o Custo Efetivo Total (CET).",
+            "fonte": "Banco Central",
+            "url": "https://www.google.com/search?q=financiamento+imobiliario", 
+            "data": str(date.today()), 
+            "regiao": "Brasil",
+            "status": "Rascunho", 
+            "verificado": True
         }
     ]
 
@@ -68,9 +71,7 @@ if "noticias_descobertas" not in st.session_state:
 if "corretores_equipa" not in st.session_state:
     st.session_state.corretores_equipa = {
         "Gabriel Martins": {"cargo": "Head Comercial BeSmart", "insta": "@gabrielmartins.corretor"},
-        "Equipe Comercial BeSmart": {"cargo": "Consultoria Imobiliária", "insta": "@besmartimoveis"},
-        "Ana Souza": {"cargo": "Corretora Associada", "insta": "@anasouza.besmart"},
-        "Carlos Eduardo": {"cargo": "Especialista em Lançamentos", "insta": "@carloseduardo.imoveis"}
+        "Equipe Comercial BeSmart": {"cargo": "Consultoria Imobiliária", "insta": "@besmartimoveis"}
     }
 
 def obter_fonte(size, bold=False):
@@ -110,43 +111,38 @@ def wrap_lines(draw, text, fnt, max_width):
     return lines
 
 def carregar_imagem_contexto(item_id, categoria):
-    # Curadoria de imagens diretas para evitar bloqueios de servidores na nuvem
     curadoria_imagens = {
         "Juros e financiamento": [
-            "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1080&h=1920&fit=crop",
-            "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?q=80&w=1080&h=1920&fit=crop"
+            "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1080",
+            "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?q=80&w=1080"
         ],
         "Bancos e crédito": [
-            "https://images.unsplash.com/photo-1501167786227-4cba60f6d58f?q=80&w=1080&h=1920&fit=crop",
-            "https://images.unsplash.com/photo-1601597111158-2fceff292cdc?q=80&w=1080&h=1920&fit=crop"
+            "https://images.unsplash.com/photo-1501167786227-4cba60f6d58f?q=80&w=1080",
+            "https://images.unsplash.com/photo-1601597111158-2fceff292cdc?q=80&w=1080"
         ],
         "Lançamentos imobiliários": [
-            "https://images.unsplash.com/photo-1460317442991-0ec209397118?q=80&w=1080&h=1920&fit=crop",
-            "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?q=80&w=1080&h=1920&fit=crop"
+            "https://images.unsplash.com/photo-1460317442991-0ec209397118?q=80&w=1080",
+            "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?q=80&w=1080"
         ],
         "Valorização de bairros": [
-            "https://images.unsplash.com/photo-1449844908441-8829872d2607?q=80&w=1080&h=1920&fit=crop",
-            "https://images.unsplash.com/photo-1519501025264-65ba15a82390?q=80&w=1080&h=1920&fit=crop"
+            "https://images.unsplash.com/photo-1449844908441-8829872d2607?q=80&w=1080",
+            "https://images.unsplash.com/photo-1519501025264-65ba15a82390?q=80&w=1080"
         ],
         "Mercado regional": [
-            "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=1080&h=1920&fit=crop",
-            "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?q=80&w=1080&h=1920&fit=crop"
+            "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=1080",
+            "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?q=80&w=1080"
         ],
         "Investimento imobiliário": [
-            "https://images.unsplash.com/photo-1560518883-ce09059eeffa?q=80&w=1080&h=1920&fit=crop",
-            "https://images.unsplash.com/photo-1558036117-15d82a90b9b1?q=80&w=1080&h=1920&fit=crop"
+            "https://images.unsplash.com/photo-1560518883-ce09059eeffa?q=80&w=1080",
+            "https://images.unsplash.com/photo-1558036117-15d82a90b9b1?q=80&w=1080"
         ],
         "Economia": [
-            "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=1080&h=1920&fit=crop",
-            "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?q=80&w=1080&h=1920&fit=crop"
+            "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?q=80&w=1080",
+            "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?q=80&w=1080"
         ],
         "Legislação": [
-            "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=1080&h=1920&fit=crop",
-            "https://images.unsplash.com/photo-1505664159854-232fb110c896?q=80&w=1080&h=1920&fit=crop"
+            "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=1080",
+            "https://images.unsplash.com/photo-1505664159854-232fb110c896?q=80&w=1080"
         ],
         "Infraestrutura": [
-            "https://images.unsplash.com/photo-1541888086425-d81bb19240f5?q=80&w=1080&h=1920&fit=crop",
-            "https://images.unsplash.com/photo-1503387762-592deb58ef4e?q=80&w=1080&h=1920&fit=crop"
-        ],
-        "Conteúdo educativo": [
             "
