@@ -318,7 +318,7 @@ c2.metric("Rascunhos", sum(1 for i in lista_atual if i.get("status") == "Rascunh
 c3.metric("Aprovados", sum(1 for i in lista_atual if i.get("status") == "Aprovado"))
 c4.metric("Stories gerados", len(st.session_state.historico_stories))
 
-tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "➕ Buscar Notícias Reais (Últimos Dias)", "📚 Histórico & Métricas"])
+tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "➕ Buscar Notícias Reais (Nacional)", "📚 Histórico & Métricas"])
 
 with tab1:
     col_t1, col_t2 = st.columns([3, 1])
@@ -406,21 +406,22 @@ with tab1:
                             st.rerun()
 
 with tab2:
-    st.subheader("Varredura de Notícias Reais da Imprensa")
+    st.subheader("Varredura Ampla de Notícias Reais (Niterói, RJ, SP, Curitiba e Balneário Camboriú)")
     
     with st.container(border=True):
-        st.markdown("### 🌐 Coleta Ampla de Matérias com Links Diretos")
-        st.write("Clique no botão abaixo para buscar matérias recentes publicadas por portais de notícias sobre o mercado imobiliário, Niterói, Rio de Janeiro e economia.")
+        st.markdown("### 🌐 Coleta Abrangente de Matérias da Imprensa")
+        st.write("Clique no botão abaixo para buscar matérias reais publicadas por portais de notícias cobrindo o mercado imobiliário regional e nacional.")
         
         if st.button("🚀 Buscar Notícias Reais", type="primary"):
             noticias_extraidas = []
             
             termos_pesquisa = [
                 "mercado imobiliario Niterói",
-                "lancamentos imobiliarios Rio de Janeiro",
-                "financiamento imobiliario juros",
-                "mercado imobiliario FipeZAP",
-                "imoveis RJ Ademi"
+                "mercado imobiliario Rio de Janeiro",
+                "lancamentos imobiliarios Sao Paulo",
+                "mercado imobiliario Curitiba",
+                "imoveis Balneario Camboriu",
+                "financiamento imobiliario juros FipeZAP"
             ]
             
             for termo in termos_pesquisa:
@@ -449,7 +450,7 @@ with tab2:
                                 resumo_real = descricao.strip()
 
                             noticias_extraidas.append({
-                                "categoria": "Lançamentos imobiliários" if "Niterói" in termo or "lancamentos" in termo else "Juros e financiamento",
+                                "categoria": "Lançamentos imobiliários" if "Niterói" in termo or "lancamentos" in termo or "Balneario" in termo else "Juros e financiamento",
                                 "titulo": titulo_limpo,
                                 "destaque": titulo_limpo.upper(),
                                 "resumo": resumo_real,
@@ -467,12 +468,12 @@ with tab2:
                     vistos.add(n['url'])
                     unicas.append(n)
             
-            st.session_state.noticias_descobertas = unicas[:20]
+            st.session_state.noticias_descobertas = unicas[:25]
             
             if st.session_state.noticias_descobertas:
                 st.success(f"{len(st.session_state.noticias_descobertas)} matérias reais carregadas com sucesso!")
             else:
-                st.warning("Nenhuma matéria encontrada com os termos atuais. Utilize o cadastro manual abaixo.")
+                st.warning("Nenhuma matéria encontrada. Utilize o cadastro manual abaixo.")
 
     if st.session_state.noticias_descobertas:
         st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Encontradas")
@@ -494,7 +495,7 @@ with tab2:
                         "fonte": n_item.get('fonte', 'Google News'),
                         "url": n_item.get('url', 'https://www.google.com'),
                         "data": str(date.today()),
-                        "regiao": "Rio de Janeiro e Niterói",
+                        "regiao": "Brasil",
                         "status": "Rascunho",
                         "verificado": True
                     })
