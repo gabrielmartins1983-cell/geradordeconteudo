@@ -329,7 +329,7 @@ with tab2:
             else:
                 with st.spinner("A inteligência artificial está a estruturar a pílula de mercado..."):
                     try:
-                        model = genai.GenerativeModel('gemini-2.5-flash')
+                        model = genai.GenerativeModel('gemini-3.8-flash')
                         prompt = f"""
                         Você é um especialista em marketing imobiliário e inteligência de mercado da Be.Smart Imóveis. 
                         Analise o texto/link abaixo e extraia/crie os seguintes campos formatados rigorosamente em JSON puro:
