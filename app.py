@@ -38,7 +38,7 @@ if "dados_noticias" not in st.session_state:
             "categoria": "Juros e financiamento",
             "titulo": "Painel de Inteligência Imobiliária BeSmart - Inicie a varredura dinâmica",
             "destaque": "PAINEL ADMINISTRATIVO",
-            "resumo": "Utilize a aba ao lado para executar a varredura dos últimos 30 dias na imprensa e capturar notícias com links diretos.",
+            "resumo": "Utilize a aba ao lado para executar a varredura na imprensa e capturar notícias recentes com links diretos.",
             "fonte": "Sistema BeSmart",
             "url": "https://www.google.com", 
             "data": str(date.today()), 
@@ -318,7 +318,7 @@ c2.metric("Rascunhos", sum(1 for i in lista_atual if i.get("status") == "Rascunh
 c3.metric("Aprovados", sum(1 for i in lista_atual if i.get("status") == "Aprovado"))
 c4.metric("Stories gerados", len(st.session_state.historico_stories))
 
-tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "🔄 Varredura (Últimos 30 Dias)", "📚 Histórico & Métricas"])
+tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "🔄 Varredura na Imprensa", "📚 Histórico & Métricas"])
 
 with tab1:
     col_t1, col_t2 = st.columns([3, 1])
@@ -406,25 +406,26 @@ with tab1:
                             st.rerun()
 
 with tab2:
-    st.subheader("Varredura Recente na Imprensa (Últimos 30 Dias)")
+    st.subheader("Varredura Flexível na Imprensa")
     
     with st.container(border=True):
-        st.markdown("### 🌐 Coleta Restrita ao Período Recente")
-        st.write("Clique abaixo para buscar matérias publicadas estritamente nos últimos 30 dias em portais de notícias e finanças, garantindo links diretos e específicos para cada artigo.")
+        st.markdown("### 🌐 Coleta Ampla de Pautas")
+        st.write("Clique abaixo para buscar notícias recentes do mercado imobiliário e financeiro de forma flexível.")
         
-        if st.button("🔄 Executar Varredura (Últimos 30 Dias)", type="primary"):
+        if st.button("🔄 Executar Varredura Dinâmica", type="primary"):
             noticias_extraidas = []
             
             termos_pesquisa = [
                 "mercado imobiliario",
                 "lancamentos imobiliarios",
-                "financiamento imobiliario juros",
-                "setor imobiliario economia",
+                "financiamento imobiliario",
+                "setor imobiliario",
                 "fundos imobiliarios FII"
             ]
             
             for termo in termos_pesquisa:
-                url_rss = f"https://news.google.com/rss/search?q={urllib.parse.quote_plus(termo)}&hl=pt-BR&gl=BR&ceid=BR:pt-415&tbs=qdr:m"
+                # Removemos o filtro restritivo de tempo &tbs=qdr:m para garantir que o feed retorne itens com facilidade
+                url_rss = f"https://news.google.com/rss/search?q={urllib.parse.quote_plus(termo)}&hl=pt-BR&gl=BR&ceid=BR:pt-415"
                 try:
                     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
                     req = urllib.request.Request(url_rss, headers=headers)
@@ -435,7 +436,7 @@ with tab2:
                         for item in root.findall('.//item'):
                             link_node = item.find('link')
                             link_original = link_node.text if link_node is not None else ""
-                            if not link_original or link_original.count('/') < 4 or 'google.com' in link_original:
+                            if not link_original or 'google.com' in link_original:
                                 continue
                                 
                             titulo_original = item.find('title').text if item.find('title') is not None else "Notícia do Setor"
@@ -446,7 +447,7 @@ with tab2:
                             titulo_limpo = partes[0]
                             nome_veiculo = partes[1] if len(partes) > 1 else "Imprensa Nacional"
                             
-                            resumo_real = f"Cobertura jornalística recente dos últimos 30 dias abordando {termo}."
+                            resumo_real = f"Cobertura jornalística recente abordando {termo}."
                             if len(descricao) > 30 and "<" not in descricao:
                                 resumo_real = descricao.strip()
 
@@ -472,9 +473,9 @@ with tab2:
             st.session_state.noticias_descobertas = unicas[:25]
             
             if st.session_state.noticias_descobertas:
-                st.success(f"{len(st.session_state.noticias_descobertas)} matérias dos últimos 30 dias capturadas com links diretos!")
+                st.success(f"{len(st.session_state.noticias_descobertas)} matérias capturadas com sucesso!")
             else:
-                st.warning("Nenhuma matéria recente capturada neste ciclo de 30 dias. Utilize o cadastro manual abaixo para registrar novas pautas.")
+                st.warning("A rede externa não retornou itens neste momento. Utilize o cadastro manual abaixo para registrar sua pauta instantaneamente.")
 
     if st.session_state.noticias_descobertas:
         st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Capturadas")
