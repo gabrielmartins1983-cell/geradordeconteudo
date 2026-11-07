@@ -441,5 +441,49 @@ with tab2:
 
     st.divider()
     st.markdown("#### ✍️ Cadastro Manual:")
+    
+    # Categorias separadas em lista organizada para evitar linhas longas
+    lista_categorias = [
+        "Juros e financiamento", 
+        "Bancos e crédito", 
+        "Lançamentos imobiliários",
+        "Valorização de bairros", 
+        "Mercado regional", 
+        "Investimento imobiliário",
+        "Economia", 
+        "Legislação", 
+        "Infraestrutura", 
+        "Conteúdo educativo"
+    ]
+    
     with st.form("new_item", clear_on_submit=False):
-        categoria = st.selectbox("Categoria", ["Juros e financiamento", "Bancos e crédito", "Lanç
+        categoria = st.selectbox("Categoria", lista_categorias)
+        titulo = st.text_input("Título")
+        destaque = st.text_input("Chamada (MAIÚSCULAS)")
+        resumo = st.text_area("Resumo")
+        fonte = st.text_input("Fonte")
+        submitted = st.form_submit_button("Salvar na biblioteca", type="primary")
+        
+        if submitted and titulo and destaque:
+            st.session_state.dados_noticias.append({
+                "id": st.session_state.proximo_id, "categoria": categoria, "titulo": titulo,
+                "destaque": destaque, "resumo": resumo, "fonte": fonte, "status": "Rascunho", 
+                "data": str(date.today())
+            })
+            st.session_state.proximo_id += 1
+            st.success("Salvo!")
+            st.rerun()
+
+with tab3:
+    st.subheader("📚 Histórico de Publicações")
+    if not st.session_state.historico_stories:
+        st.info("Nenhum Story gerado ainda.")
+    else:
+        for idx, story_hist in enumerate(st.session_state.historico_stories):
+            with st.container(border=True):
+                col_info, col_img = st.columns([3, 1])
+                with col_info:
+                    st.markdown(f"**{story_hist['destaque']}**")
+                    st.markdown(f"### {story_hist['titulo']}")
+                with col_img:
+                    st.image(story_hist['bytes'], width=150)
