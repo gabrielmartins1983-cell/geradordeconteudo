@@ -38,7 +38,7 @@ if "dados_noticias" not in st.session_state:
             "categoria": "Juros e financiamento",
             "titulo": "Painel de Inteligência Imobiliária BeSmart - Inicie a varredura dinâmica",
             "destaque": "PAINEL ADMINISTRATIVO",
-            "resumo": "Utilize a aba ao lado para executar a varredura diária em portais de referência e capturar notícias recentes com links diretos.",
+            "resumo": "Utilize a aba de varredura para capturar notícias recentes diretamente de portais de referência em tempo real.",
             "fonte": "Sistema BeSmart",
             "url": "https://www.google.com", 
             "data": str(date.today()), 
@@ -269,3 +269,9 @@ with st.sidebar:
                 if novo_nome:
                     st.session_state.corretores_equipa[novo_nome] = {"cargo": novo_cargo, "insta": novo_insta}
                     st.success("Corretor gravado com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Insira o nome do corretor.")
+    else:
+        dados_atuais = st.session_state.corretores_equipa[selecao_edicao]
+        with st.form("
