@@ -415,7 +415,6 @@ with tab2:
         if st.button("🔄 Executar Varredura Dinâmica de Notícias", type="primary"):
             noticias_extraidas = []
             
-            # Termos de busca amplos para abranger todo o ecossistema imobiliário e financeiro nacional
             termos_pesquisa = [
                 "mercado imobiliario",
                 "lancamentos imobiliarios",
@@ -434,8 +433,8 @@ with tab2:
                         root = ET.fromstring(xml_data)
                         
                         for item in root.findall('.//item'):
-                            link_original = item.find('link').text if item.find('link'] is not None else ""
-                            # Filtro estrito para garantir link direto de artigo específico e descartar homepages
+                            link_node = item.find('link')
+                            link_original = link_node.text if link_node is not None else ""
                             if not link_original or link_original.count('/') < 4 or 'google.com' in link_original:
                                 continue
                                 
@@ -463,7 +462,6 @@ with tab2:
                 except Exception:
                     continue
             
-            # Remove duplicadas por URL
             vistos = set()
             unicas = []
             for n in noticias_extraidas:
