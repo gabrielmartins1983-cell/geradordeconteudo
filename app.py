@@ -7,6 +7,7 @@ import json
 import random
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 import google.generativeai as genai
 
 st.set_page_config(page_title="BeSmart News | Painel administrativo", page_icon="🟣", layout="wide")
@@ -48,7 +49,7 @@ if "dados_noticias" not in st.session_state:
             "destaque": "JUROS E CRÉDITO IMOBILIÁRIO",
             "resumo": "As condições correntes de crédito impactam diretamente o Custo Efetivo Total (CET).",
             "fonte": "Banco Central",
-            "url": "https://www.google.com/search?q=financiamento", 
+            "url": "https://www.google.com", 
             "data": str(date.today()), 
             "regiao": "Brasil",
             "status": "Rascunho", 
@@ -366,7 +367,7 @@ with tab1:
                     st.write(item.get("resumo", ""))
                     st.caption(f"{item.get('categoria', '')} • {item.get('data', '')}")
                     if item.get("url"):
-                        st.markdown(f"🔗 [Acessar link original / Google]({item.get('url')})")
+                        st.markdown(f"🔗 [Acessar link original da matéria]({item.get('url')})")
                 
                 with right:
                     corretores_story = st.multiselect(
@@ -408,75 +409,77 @@ with tab1:
                             st.rerun()
 
 with tab2:
-    st.subheader("Gerador de Notícias (IA + Pesquisa Google)")
+    st.subheader("Gerador de Notícias (Google News RSS)")
     
     with st.container(border=True):
-        st.markdown("### 🌐 Varredura Inteligente do Dia")
-        st.write("Clique no botão para buscar entre 15 e 20 notícias recentes do mercado imobiliário. Caso a cota da IA atinja o limite, o painel gerará automaticamente links de pesquisa direta no Google para curadoria.")
+        st.markdown("### 🌐 Varredura de Matérias Reais")
+        st.write("Clique no botão para buscar notícias reais e recentes diretamente do Google News sobre o mercado imobiliário, com links diretos para as matérias originais.")
         
-        if st.button("🚀 Buscar entre 15 e 20 Notícias do Dia", type="primary"):
-            qtd = random.randint(15, 20)
-            bruto = []
+        if st.button("🚀 Buscar Matérias Recentes com Links Originais", type="primary"):
+            noticias_extraidas = []
             
-            # Tenta gerar via IA
-            try:
-                model = genai.GenerativeModel('gemini-2.5-flash')
-                prompt_lote = f"""Gere um array JSON válido com exatamente {qtd} objetos contendo as chaves:
-                categoria (escolha entre: Juros e financiamento, Bancos e crédito, Lançamentos imobiliários, Valorização de bairros, Mercado regional, Investimento imobiliário, Economia, Legislação, Infraestrutura, Conteúdo educativo), 
-                titulo (max 80 caracteres), 
-                destaque (MAIÚSCULAS max 40 caracteres), 
-                resumo (max 150 caracteres), 
-                fonte (nome do veículo). 
-                Retorne APENAS o array JSON puro, sem blocos de markdown."""
-                
-                resp = model.generate_content(prompt_lote)
-                limpo = resp.text.replace("```json", "").replace("```", "").strip()
-                bruto = json.loads(limpo)
-            except Exception:
-                pass
+            # Consultas direcionadas no Google News RSS
+            termos_pesquisa = [
+                "mercado imobiliario",
+                "credito imobiliario juros",
+                "lancamentos imobiliarios",
+                "financiamento imobiliario"
+            ]
             
-            # Se a IA falhar ou atingir limite de cota, monta dinamicamente pílulas baseadas em pesquisa Google
-            if not bruto:
-                temas_fallback = [
-                    ("Juros e financiamento", "Impacto da taxa Selic no financiamento imobiliário atual", "TAXA SELIC E CRÉDITO"),
-                    ("Bancos e crédito", "Condições atuais para crédito habitacional em bancos públicos e privados", "CRÉDITO HABITACIONAL"),
-                    ("Lançamentos imobiliários", "Novos empreendimentos e lançamentos de alto padrão no Rio de Janeiro", "LANÇAMENTOS IMOBILIÁRIOS"),
-                    ("Valorização de bairros", "Análise de valorização do metro quadrado em zonas residenciais", "VALORIZAÇÃO DE BAIRROS"),
-                    ("Investimento imobiliário", "Rentabilidade do mercado de aluguel residencial comparada a investimentos", "RENTABILIDADE DO ALUGUEL"),
-                    ("Economia", "Cenário econômico e indicadores do setor da construção civil", "ECONOMIA E CONSTRUÇÃO"),
-                    ("Legislação", "Mudanças em regras de cartórios e regularização de imóveis urbanos", "LEGISLAÇÃO IMOBILIÁRIA"),
-                    ("Infraestrutura", "Projetos de mobilidade e impacto na expansão urbana", "INFRAESTRUTURA URBANA"),
-                    ("Conteúdo educativo", "Como orientar clientes a calcular o Custo Efetivo Total do financiamento", "EDUCAÇÃO IMOBILIÁRIA")
-                ]
-                
-                for i in range(qtd):
-                    cat, tit, dest = random.choice(temas_fallback)
-                    bruto.append({
-                        "categoria": cat,
-                        "titulo": f"{tit} — Tendências e análises do mercado ({i+1})",
-                        "destaque": dest,
-                        "resumo": "Acompanhe as principais movimentações do setor e oriente seus clientes com base nos dados mais recentes do mercado.",
-                        "fonte": "Mercado / Google News"
-                    })
+            for termo in termos_pesquisa:
+                url_rss = f"https://news.google.com/rss/search?q={urllib.parse.quote_plus(termo)}&hl=pt-BR&gl=BR&ceid=BR:pt-415"
+                try:
+                    req = urllib.request.Request(url_rss, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        xml_data = resp.read()
+                        root = ET.fromstring(xml_data)
+                        
+                        for item in root.findall('.//item')[:5]:
+                            titulo_original = item.find('title').text if item.find('title') is not None else "Notícia Imobiliária"
+                            link_original = item.find('link').text if item.find('link') is not None else "https://www.google.com"
+                            data_pub = item.find('pubDate').text if item.find('pubDate') is not None else str(date.today())
+                            
+                            # Limpa o título (o Google News costuma colocar " - Nome do Site" no final)
+                            partes = titulo_original.split(" - ")
+                            titulo_limpo = partes[0]
+                            fonte_nome = partes[1] if len(partes) > 1 else "Google News"
+                            
+                            noticias_extraidas.append({
+                                "categoria": "Juros e financiamento" if "juros" in termo or "credito" in termo else "Lançamentos imobiliários",
+                                "titulo": titulo_limpo[:80],
+                                "destaque": titulo_limpo[:35].upper(),
+                                "resumo": f"Matéria oficial publicada recentemente abordando as novidades sobre {termo}.",
+                                "fonte": fonte_nome,
+                                "url": link_original
+                            })
+                except Exception:
+                    continue
             
-            st.session_state.noticias_descobertas = []
-            for item_n in bruto:
-                termo_busca = f"{item_n.get('titulo', '')} {item_n.get('fonte', '')}"
-                link_google = f"https://www.google.com/search?q={urllib.parse.quote_plus(termo_busca)}"
-                item_n['url'] = link_google
-                st.session_state.noticias_descobertas.append(item_n)
-                
-            st.success(f"{len(bruto)} notícias recentes obtidas com sucesso!")
+            # Remove duplicadas por URL
+            vistos = set()
+            unicas = []
+            for n in noticias_extraidas:
+                if n['url'] not in vistos:
+                    vistos.add(n['url'])
+                    unicas.append(n)
+            
+            random.shuffle(unicas)
+            st.session_state.noticias_descobertas = unicas[:20]
+            
+            if st.session_state.noticias_descobertas:
+                st.success(f"{len(st.session_state.noticias_descobertas)} matérias reais encontradas com links originais!")
+            else:
+                st.warning("Não foi possível carregar o feed neste momento. Utilize o cadastro manual abaixo.")
 
     if st.session_state.noticias_descobertas:
-        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Notícias Encontradas Prontas para Adicionar")
+        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Encontradas com Links Diretos")
         for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
             with st.container(border=True):
                 st.markdown(f"**[{n_item.get('categoria', '')}]** {n_item.get('titulo', '')}")
-                st.caption(f"Destaque: {n_item.get('destaque', '')} | Fonte: {n_item.get('fonte', '')}")
+                st.caption(f"Destaque: {n_item.get('destaque', '')} | Veículo / Fonte: {n_item.get('fonte', '')}")
                 st.write(n_item.get('resumo', ''))
                 if n_item.get('url'):
-                    st.markdown(f"🔗 [Pesquisar e validar notícia no Google]({n_item.get('url')})")
+                    st.markdown(f"🔗 **[Abrir matéria original para validação]({n_item.get('url')})**")
                 
                 if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
                     st.session_state.dados_noticias.append({
@@ -486,7 +489,7 @@ with tab2:
                         "destaque": n_item.get('destaque', ''),
                         "resumo": n_item.get('resumo', ''),
                         "gancho": "Consulte nossa equipe especializada.",
-                        "fonte": n_item.get('fonte', 'BeSmart Inteligência'),
+                        "fonte": n_item.get('fonte', 'Google News'),
                         "url": n_item.get('url', 'https://www.google.com'),
                         "data": str(date.today()),
                         "regiao": "Rio de Janeiro e Niterói",
@@ -494,7 +497,7 @@ with tab2:
                         "verificado": True
                     })
                     st.session_state.proximo_id += 1
-                    st.success("Notícia adicionada com sucesso à biblioteca!")
+                    st.success("Matéria adicionada com sucesso à biblioteca!")
                     st.rerun()
 
     st.divider()
@@ -519,19 +522,20 @@ with tab2:
         destaque = st.text_input("Chamada (MAIÚSCULAS)")
         resumo = st.text_area("Resumo")
         fonte = st.text_input("Fonte")
-        url_manual = st.text_input("Link da matéria original (opcional)", placeholder="https://...")
+        url_manual = st.text_input("Link direto da matéria original", placeholder="https://...")
         submitted = st.form_submit_button("Salvar na biblioteca", type="primary")
         
-        if submitted and titulo and destaque:
-            link_final = url_manual if (url_manual and url_manual.startswith("http")) else f"https://www.google.com/search?q={urllib.parse.quote_plus(titulo + ' ' + fonte)}"
+        if submitted and titulo and destaque and url_manual:
             st.session_state.dados_noticias.append({
                 "id": st.session_state.proximo_id, "categoria": categoria, "titulo": titulo,
-                "destaque": destaque, "resumo": resumo, "fonte": fonte, "url": link_final, "status": "Rascunho", 
+                "destaque": destaque, "resumo": resumo, "fonte": fonte, "url": url_manual, "status": "Rascunho", 
                 "data": str(date.today()), "verificado": True
             })
             st.session_state.proximo_id += 1
             st.success("Salvo com sucesso na biblioteca!")
             st.rerun()
+        elif submitted:
+            st.error("Preencha os campos obrigatórios, incluindo o link direto da matéria original.")
 
 with tab3:
     col_th1, col_th2 = st.columns([3, 1])
