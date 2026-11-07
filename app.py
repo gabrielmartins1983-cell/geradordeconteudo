@@ -339,7 +339,6 @@ with tab2:
     if "ai_fonte" not in st.session_state: st.session_state.ai_fonte = ""
     if "ai_url" not in st.session_state: st.session_state.ai_url = ""
 
-    # Botão de Busca Automatizada de 15 a 20 Notícias
     with st.container(border=True):
         st.markdown("### 🌐 Varredura Inteligente de Mercado")
         st.write("Clique abaixo para o Gemini pesquisar e trazer entre **15 e 20 notícias recentes** do mercado imobiliário para o seu dia a dia.")
@@ -368,7 +367,6 @@ with tab2:
                 except Exception as e:
                     st.error(f"Erro ao buscar notícias em lote: {e}")
 
-    # Exibir as notícias descobertas para adicionar à biblioteca
     if st.session_state.noticias_descobertas:
         st.markdown("#### 📋 Notícias Encontradas Prontas para Adicionar")
         for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
@@ -438,4 +436,71 @@ with tab2:
         )
         titulo = st.text_input("Título interno", value=st.session_state.ai_titulo)
         destaque = st.text_input("Chamada principal da arte", value=st.session_state.ai_destaque)
-        resumo = st.text_area("Resumo curto", value=st.
+        resumo = st.text_area("Resumo curto", value=st.session_state.ai_resumo)
+        gancho = st.text_input("Pergunta ou chamada", value=st.session_state.ai_gancho)
+        regiao = st.selectbox("Abrangência", ["Brasil", "Rio de Janeiro", "Niterói", "Rio de Janeiro e Niterói", "Outro"])
+        fonte = st.text_input("Nome da fonte", value=st.session_state.ai_fonte)
+        url = st.text_input("Link da fonte original", value=st.session_state.ai_url)
+        verificado = st.checkbox("Conferi a informação", value=True)
+        submitted = st.form_submit_button("Salvar conteúdo na biblioteca", type="primary", use_container_width=True)
+        
+        id_atual = st.session_state.proximo_id
+        if submitted:
+            if not titulo or not destaque or not resumo or not fonte:
+                st.error("Preencha os campos obrigatórios.")
+            else:
+                st.session_state.dados_noticias.append({
+                    "id": id_atual, 
+                    "categoria": categoria, 
+                    "titulo": titulo,
+                    "destaque": destaque, 
+                    "resumo": resumo, 
+                    "gancho": gancho or "Converse com a equipe BeSmart.",
+                    "fonte": fonte, 
+                    "url": url or "https://exemplo.com", 
+                    "data": str(date.today()), 
+                    "regiao": regiao,
+                    "status": "Rascunho", 
+                    "verificado": verificado
+                })
+                st.session_state.proximo_id += 1
+                st.session_state.ai_titulo = ""
+                st.session_state.ai_destaque = ""
+                st.session_state.ai_resumo = ""
+                st.session_state.ai_gancho = ""
+                st.session_state.ai_fonte = ""
+                st.session_state.ai_url = ""
+                st.success("Cadastrado com sucesso na biblioteca!")
+                st.rerun()
+
+with tab3:
+    st.subheader("📚 Histórico de Publicações e Métricas")
+    
+    total_gerados = len(st.session_state.historico_stories)
+    col_m1, col_m2, col_m3 = st.columns(3)
+    col_m1.metric("Total de Stories Produzidos", total_gerados)
+    col_m2.metric("Editor de Conteúdo", "Google Gemini IA")
+    col_m3.metric("Padrão Visual", "Be.Smart Imóveis")
+    
+    st.divider()
+    
+    if total_gerados == 0:
+        st.info("Ainda não gerou nenhum Story. Vá até à aba '📰 Conteúdos' ou '➕ Novo conteúdo com IA' para criar a sua primeira arte.")
+    else:
+        st.markdown("#### 🕒 Registo de Artes Geradas")
+        for idx, story_hist in enumerate(st.session_state.historico_stories):
+            with st.container(border=True):
+                col_info, col_img = st.columns([3, 1])
+                with col_info:
+                    st.markdown(f"**{story_hist['destaque']}**")
+                    st.markdown(f"### {story_hist['titulo']}")
+                    st.caption(f"Categoria: {story_hist['categoria']} • Gerado em: {story_hist['data_geracao']}")
+                    st.download_button(
+                        "📥 Descarregar novamente",
+                        data=story_hist['bytes'],
+                        file_name=story_hist['filename'],
+                        mime="image/png",
+                        key=f"hist_down_{idx}"
+                    )
+                with col_img:
+                    st.image(story_hist['bytes'], width=150)
