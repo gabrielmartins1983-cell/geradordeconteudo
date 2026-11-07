@@ -63,13 +63,14 @@ if "historico_stories" not in st.session_state:
 if "noticias_descobertas" not in st.session_state:
     st.session_state.noticias_descobertas = []
 
-# Base de corretores e equipa disponíveis
-CORRETORES_EQUIPA = {
-    "Gabriel Martins": {"cargo": "Head Comercial BeSmart", "insta": "@gabrielmartins.corretor"},
-    "Equipe Comercial BeSmart": {"cargo": "Consultoria Imobiliária", "insta": "@besmartimoveis"},
-    "Ana Souza": {"cargo": "Corretora Associada", "insta": "@anasouza.besmart"},
-    "Carlos Eduardo": {"cargo": "Especialista em Lançamentos", "insta": "@carloseduardo.imoveis"}
-}
+# Estado persistente da Equipe e Corretores na sessão
+if "corretores_equipa" not in st.session_state:
+    st.session_state.corretores_equipa = {
+        "Gabriel Martins": {"cargo": "Head Comercial BeSmart", "insta": "@gabrielmartins.corretor"},
+        "Equipe Comercial BeSmart": {"cargo": "Consultoria Imobiliária", "insta": "@besmartimoveis"},
+        "Ana Souza": {"cargo": "Corretora Associada", "insta": "@anasouza.besmart"},
+        "Carlos Eduardo": {"cargo": "Especialista em Lançamentos", "insta": "@carloseduardo.imoveis"}
+    }
 
 def obter_fonte(size, bold=False):
     candidatos = [
@@ -217,7 +218,7 @@ def make_story(item, corretores_selecionados):
     espacamento_bloco = 150 if len(corretores_selecionados) <= 2 else 120
     
     for idx_corr, nome_corr in enumerate(corretores_selecionados[:3]):
-        info_corr = CORRETORES_EQUIPA.get(nome_corr, {"cargo": "Consultor Imobiliário", "insta": "@besmartimoveis"})
+        info_corr = st.session_state.corretores_equipa.get(nome_corr, {"cargo": "Consultor Imobiliário", "insta": "@besmartimoveis"})
         
         avatar_y = card_corr_top + (idx_corr * espacamento_bloco) + 50
         avatar_r = 55
@@ -252,19 +253,67 @@ st.markdown('<div class="brand">be.smart <span>news</span></div><div class="smal
 st.write("")
 
 with st.sidebar:
-    st.markdown("### ⚙️ Configuração de Corretores")
-    st.info("Selecione os corretores ou responsáveis ativos para a equipa.")
+    st.markdown("### ⚙️ Gestão de Corretores")
+    st.info("Edite os campos de nome, cargo e Instagram dos membros da equipa e clique em gravar.")
     
+    # Seleção do corretor a editar ou criar novo
+    lista_nomes = list(st.session_state.corretores_equipa.keys())
+    selecao_edicao = st.selectbox("Selecionar Corretor para Editar", ["➕ Adicionar Novo Corretor"] + lista_nomes)
+    
+    if selecao_edicao == "➕ Adicionar Novo Corretor":
+        with st.form("form_novo_corretor"):
+            novo_nome = st.text_input("Nome do Corretor")
+            novo_cargo = st.text_input("Cargo", value="Corretor Associado")
+            novo_insta = st.text_input("Instagram", value="@besmartimoveis")
+            salvar_novo = st.form_submit_button("💾 Salvar Novo Corretor", use_container_width=True)
+            
+            if salvar_novo:
+                if novo_nome:
+                    st.session_state.corretores_equipa[novo_nome] = {"cargo": novo_cargo, "insta": novo_insta}
+                    st.success(f"Corretor '{novo_nome}' gravado com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Insira o nome do corretor.")
+    else:
+        dados_atuais = st.session_state.corretores_equipa[selecao_edicao]
+        with st.form("form_edita_corretor"):
+            edit_nome = st.text_input("Nome", value=selecao_edicao)
+            edit_cargo = st.text_input("Cargo", value=dados_atuais["cargo"])
+            edit_insta = st.text_input("Instagram", value=dados_atuais["insta"])
+            
+            col_fe1, col_fe2 = st.columns(2)
+            with col_fe1:
+                salvar_edicao = st.form_submit_button("💾 Gravar Alterações", use_container_width=True)
+            with col_fe2:
+                excluir_corr = st.form_submit_button("🗑️ Excluir", use_container_width=True)
+                
+            if salvar_edicao:
+                if edit_nome != selecao_edicao:
+                    del st.session_state.corretores_equipa[selecao_edicao]
+                st.session_state.corretores_equipa[edit_nome] = {"cargo": edit_cargo, "insta": edit_insta}
+                st.success("Alterações gravadas com sucesso!")
+                st.rerun()
+                
+            if excluir_corr:
+                if len(st.session_state.corretores_equipa) > 1:
+                    del st.session_state.corretores_equipa[selecao_edicao]
+                    st.success("Corretor removido com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Deve manter pelo menos um corretor registado.")
+
+    st.divider()
+    st.markdown("### 🎯 Corretores Ativos para os Stories")
     corretores_ativos = st.multiselect(
-        "Corretores / Equipa Ativa",
-        options=list(CORRETORES_EQUIPA.keys()),
-        default=["Gabriel Martins"]
+        "Selecione quem aparecerá nas pílulas",
+        options=list(st.session_state.corretores_equipa.keys()),
+        default=list(st.session_state.corretores_equipa.keys())[:1]
     )
     
     if not corretores_ativos:
-        corretores_ativos = ["Gabriel Martins"]
+        corretores_ativos = [list(st.session_state.corretores_equipa.keys())[0]]
 
-st.info("Painel operacional ativo com captação de notícias do dia via IA e Fallback Google Search.")
+st.info("Painel operacional ativo com gestão integrada de corretores e pílulas do dia.")
 
 lista_atual = st.session_state.dados_noticias
 c1, c2, c3, c4 = st.columns(4)
@@ -380,9 +429,6 @@ with tab2:
         termo_pesquisa = st.text_input("Tema de mercado de hoje:", value="mercado imobiliário e juros Brasil")
         
         if st.button("🔎 Buscar Notícias Atualizadas", type="primary"):
-            sucesso_busca = False
-            
-            # 1. Tenta buscar pelo Gemini
             try:
                 model = genai.GenerativeModel('gemini-3.8-flash')
                 prompt_busca = f"""
@@ -398,10 +444,8 @@ with tab2:
                 resposta = model.generate_content(prompt_busca)
                 texto_limpo = resposta.text.replace("```json", "").replace("```", "").strip()
                 st.session_state.noticias_descobertas = json.loads(texto_limpo)
-                sucesso_busca = True
                 st.success("Notícias do dia obtidas com sucesso via Gemini!")
             except Exception as e:
-                # 2. Fallback Automático via Google Search (se houver erro/cota esgotada)
                 st.warning("Limite de cota do Gemini atingido. Acionando busca integrada via Google Search...")
                 try:
                     url_busca_google = f"https://www.google.com/search?q={urllib.parse.quote_plus(termo_pesquisa + ' mercado imobiliario noticias hoje')}"
@@ -415,7 +459,6 @@ with tab2:
                             "url_custom": url_busca_google
                         }
                     ]
-                    sucesso_busca = True
                     st.success("Busca integrada ativada com sucesso!")
                 except Exception as ex_google:
                     st.error(f"Erro na busca: {ex_google}")
@@ -432,100 +475,4 @@ with tab2:
                     if "url_custom" in n_item:
                         link_final = n_item["url_custom"]
                     else:
-                        link_final = f"https://www.google.com/search?q={urllib.parse.quote_plus(n_item.get('titulo', '') + ' ' + n_item.get('fonte', ''))}"
-                    
-                    st.session_state.dados_noticias.append({
-                        "id": st.session_state.proximo_id,
-                        "categoria": n_item.get('categoria', 'Mercado regional'),
-                        "titulo": n_item.get('titulo', ''),
-                        "destaque": n_item.get('destaque', ''),
-                        "resumo": n_item.get('resumo', ''),
-                        "gancho": "Consulte nossa equipe especializada.",
-                        "fonte": n_item.get('fonte', 'BeSmart Inteligência'),
-                        "url": link_final,
-                        "data": str(date.today()),
-                        "regiao": "Rio de Janeiro e Niterói",
-                        "status": "Rascunho",
-                        "verificado": True
-                    })
-                    st.session_state.proximo_id += 1
-                    st.success("Notícia adicionada com sucesso à biblioteca!")
-                    st.rerun()
-
-    st.divider()
-    st.markdown("#### ✍️ Cadastro Manual Direto (Sempre disponível):")
-
-    with st.form("new_item", clear_on_submit=False):
-        categoria = st.selectbox(
-            "Categoria", 
-            [
-                "Juros e financiamento", "Bancos e crédito", "Lançamentos imobiliários",
-                "Valorização de bairros", "Mercado regional", "Investimento imobiliário",
-                "Economia", "Legislação", "Infraestrutura", "Conteúdo educativo"
-            ]
-        )
-        titulo = st.text_input("Título da notícia de hoje", placeholder="Ex.: Nova taxa Selic definida pelo Copom")
-        destaque = st.text_input("Chamada principal da arte (MAIÚSCULAS)", placeholder="Ex.: DECISÃO DA TAXA SELIC")
-        resumo = st.text_area("Resumo curto da pílula", placeholder="Resuma o impacto da notícia...")
-        gancho = st.text_input("Chamada para engajamento", value="Fale com a nossa equipe.")
-        regiao = st.selectbox("Abrangência", ["Brasil", "Rio de Janeiro", "Niterói", "Rio de Janeiro e Niterói", "Outro"])
-        fonte = st.text_input("Nome da fonte", placeholder="Ex.: Valor Econômico")
-        url = st.text_input("Link da matéria original (opcional)", placeholder="https://...")
-        verificado = st.checkbox("Conferi a informação", value=True)
-        submitted = st.form_submit_button("Salvar notícia na biblioteca", type="primary", use_container_width=True)
-        
-        id_atual = st.session_state.proximo_id
-        if submitted:
-            if not titulo or not destaque or not resumo or not fonte:
-                st.error("Preencha os campos obrigatórios.")
-            else:
-                link_final = url if url.startswith("http") else f"https://www.google.com/search?q={urllib.parse.quote_plus(titulo + ' ' + fonte)}"
-                st.session_state.dados_noticias.append({
-                    "id": id_atual, 
-                    "categoria": categoria, 
-                    "titulo": titulo,
-                    "destaque": destaque, 
-                    "resumo": resumo, 
-                    "gancho": gancho,
-                    "fonte": fonte, 
-                    "url": link_final, 
-                    "data": str(date.today()), 
-                    "regiao": regiao,
-                    "status": "Rascunho", 
-                    "verificado": verificado
-                })
-                st.session_state.proximo_id += 1
-                st.success("Cadastrado com sucesso na biblioteca!")
-                st.rerun()
-
-with tab3:
-    st.subheader("📚 Histórico de Publicações e Métricas")
-    
-    total_gerados = len(st.session_state.historico_stories)
-    col_m1, col_m2, col_m3 = st.columns(3)
-    col_m1.metric("Total de Stories Produzidos", total_gerados)
-    col_m2.metric("Editor de Conteúdo", "Be.Smart Inteligência")
-    col_m3.metric("Padrão Visual", "Be.Smart Imóveis")
-    
-    st.divider()
-    
-    if total_gerados == 0:
-        st.info("Ainda não gerou nenhum Story. Vá até à aba '📰 Conteúdos' ou '➕ Novo conteúdo do dia' para criar a sua primeira arte.")
-    else:
-        st.markdown("#### 🕒 Registo de Artes Geradas")
-        for idx, story_hist in enumerate(st.session_state.historico_stories):
-            with st.container(border=True):
-                col_info, col_img = st.columns([3, 1])
-                with col_info:
-                    st.markdown(f"**{story_hist['destaque']}**")
-                    st.markdown(f"### {story_hist['titulo']}")
-                    st.caption(f"Categoria: {story_hist['categoria']} • Responsáveis: {story_hist.get('corretores', 'Gabriel Martins')} • Gerado em: {story_hist['data_geracao']}")
-                    st.download_button(
-                        "📥 Descarregar novamente",
-                        data=story_hist['bytes'],
-                        file_name=story_hist['filename'],
-                        mime="image/png",
-                        key=f"hist_down_{idx}"
-                    )
-                with col_img:
-                    st.image(story_hist['bytes'], width=150)
+                        link_final = f"
