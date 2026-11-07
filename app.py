@@ -454,4 +454,136 @@ with tab2:
                             noticias_extraidas.append({
                                 "categoria": "Lançamentos imobiliários" if "lancamentos" in termo else "Juros e financiamento",
                                 "titulo": titulo_limpo,
-                                "destaque": titulo_lim
+                                "destaque": titulo_limpo.upper(),
+                                "resumo": resumo_real,
+                                "fonte": fonte_nome,
+                                "url": link_original,
+                                "data": data_pub_str[:16]
+                            })
+                except Exception:
+                    continue
+            
+            vistos = set()
+            unicas = []
+            for n in noticias_extraidas:
+                if n['url'] not in vistos:
+                    vistos.add(n['url'])
+                    unicas.append(n)
+            
+            st.session_state.noticias_descobertas = unicas[:25]
+            
+            if st.session_state.noticias_descobertas:
+                st.success(f"{len(st.session_state.noticias_descobertas)} matérias atualizadas encontradas em tempo real!")
+            else:
+                st.warning("A rede de notícias está restrita no momento atual. Caso necessário, utilize o cadastro manual abaixo para adicionar pautas novas.")
+
+    if st.session_state.noticias_descobertas:
+        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Capturadas")
+        for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
+            with st.container(border=True):
+                st.markdown(f"**[{n_item.get('categoria', '')}]** {n_item.get('titulo', '')}")
+                st.caption(f"Destaque: {n_item.get('destaque', '')} | Veículo: {n_item.get('fonte', '')} | Publicado em: {n_item.get('data', '')}")
+                st.write(f"**Resumo:** {n_item.get('resumo', '')}")
+                if n_item.get('url'):
+                    st.markdown(f"🔗 **[Abrir matéria original direta]({n_item.get('url')})**")
+                
+                if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
+                    st.session_state.dados_noticias.append({
+                        "id": st.session_state.proximo_id,
+                        "categoria": n_item.get('categoria', 'Mercado regional'),
+                        "titulo": n_item.get('titulo', ''),
+                        "destaque": n_item.get('destaque', ''),
+                        "resumo": n_item.get('resumo', ''),
+                        "fonte": n_item.get('fonte', 'Google News'),
+                        "url": n_item.get('url', 'https://www.google.com'),
+                        "data": str(date.today()),
+                        "regiao": "Brasil",
+                        "status": "Rascunho",
+                        "verificado": True
+                    })
+                    st.session_state.proximo_id += 1
+                    st.success("Matéria adicionada com sucesso à biblioteca!")
+                    st.rerun()
+
+    st.divider()
+    st.markdown("#### ✍️ Cadastro Manual:")
+    
+    lista_categorias = [
+        "Juros e financiamento", 
+        "Bancos e crédito", 
+        "Lançamentos imobiliários",
+        "Valorização de bairros", 
+        "Mercado regional", 
+        "Investimento imobiliário",
+        "Economia", 
+        "Legislação", 
+        "Infraestrutura", 
+        "Conteúdo educativo"
+    ]
+    
+    with st.form("new_item", clear_on_submit=False):
+        categoria = st.selectbox("Categoria", lista_categorias)
+        titulo = st.text_input("Título")
+        destaque = st.text_input("Chamada em Destaque (MAIÚSCULAS)")
+        resumo = st.text_area("Resumo Detalhado da Matéria")
+        fonte = st.text_input("Fonte")
+        url_manual = st.text_input("Link direto da matéria original", placeholder="https://...")
+        submitted = st.form_submit_button("Salvar na biblioteca", type="primary")
+        
+        if submitted and titulo and destaque and url_manual:
+            st.session_state.dados_noticias.append({
+                "id": st.session_state.proximo_id, 
+                "categoria": categoria, 
+                "titulo": titulo,
+                "destaque": destaque, 
+                "resumo": resumo, 
+                "fonte": fonte, 
+                "url": url_manual, 
+                "status": "Rascunho", 
+                "data": str(date.today()), 
+                "verificado": True
+            })
+            st.session_state.proximo_id += 1
+            st.success("Salvo com sucesso na biblioteca!")
+            st.rerun()
+        elif submitted:
+            st.error("Preencha os campos obrigatórios, incluindo o link direto da matéria original.")
+
+with tab3:
+    col_th1, col_th2 = st.columns([3, 1])
+    with col_th1:
+        st.subheader("📚 Histórico de Publicações")
+    with col_th2:
+        if st.session_state.historico_stories:
+            if st.button("🗑️ Limpar todo o histórico", use_container_width=True):
+                st.session_state.historico_stories = []
+                st.success("Histórico limpo!")
+                st.rerun()
+                
+    if not st.session_state.historico_stories:
+        st.info("Nenhum Story gerado ainda.")
+    else:
+        for idx, story_hist in enumerate(st.session_state.historico_stories):
+            with st.container(border=True):
+                col_info, col_img = st.columns([3, 1])
+                with col_info:
+                    st.markdown(f"**{story_hist['destaque']}**")
+                    st.markdown(f"### {story_hist['titulo']}")
+                    st.caption(f"Categoria: {story_hist['categoria']} • Gerado em: {story_hist['data_geracao']}")
+                    
+                    col_h1, col_h2 = st.columns(2)
+                    with col_h1:
+                        st.download_button(
+                            "📥 Baixar PNG",
+                            data=story_hist['bytes'],
+                            file_name=story_hist['filename'],
+                            mime="image/png",
+                            key=f"hist_down_{idx}"
+                        )
+                    with col_h2:
+                        if st.button("🗑️ Apagar Story", key=f"del_hist_{idx}", use_container_width=True):
+                            st.session_state.historico_stories.pop(idx)
+                            st.success("Story removido do histórico!")
+                            st.rerun()
+                with col_img:
+                    st.image(story_hist['bytes'], width=150)
