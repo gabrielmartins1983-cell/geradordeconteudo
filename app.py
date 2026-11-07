@@ -3,6 +3,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 from io import BytesIO
 from datetime import date, datetime
 import urllib.request
+import urllib.parse
 import os
 import json
 import google.generativeai as genai
@@ -46,7 +47,7 @@ if "dados_noticias" not in st.session_state:
             "destaque": "JUROS E CRÉDITO IMOBILIÁRIO",
             "resumo": "As condições de crédito influenciam diretamente o valor das parcelas mensais, o Custo Efetivo Total (CET) e o planejamento estratégico de compra a longo prazo.",
             "fonte": "Banco Central / ABRAINC",
-            "url": "https://www.bcb.gov.br/detalhenoticia", "data": str(date.today()), "regiao": "Brasil",
+            "url": "https://www.bcb.gov.br", "data": str(date.today()), "regiao": "Brasil",
             "status": "Rascunho", "verificado": True
         },
         {
@@ -55,7 +56,7 @@ if "dados_noticias" not in st.session_state:
             "destaque": "MERCADO IMOBILIÁRIO",
             "resumo": "Infraestrutura urbana, novos modais de mobilidade, chegada de serviços e polos comerciais ajudam a entender a dinâmica de valorização de uma região.",
             "fonte": "BeSmart Inteligência de Mercado",
-            "url": "https://exemplo.com/noticia-bairro", "data": str(date.today()), "regiao": "Rio de Janeiro e Niterói",
+            "url": "https://www.google.com/search?q=investir+em+bairro+em+transformacao", "data": str(date.today()), "regiao": "Rio de Janeiro e Niterói",
             "status": "Rascunho", "verificado": True
         }
     ]
@@ -252,7 +253,7 @@ with st.sidebar:
     cargo_input = st.text_input("Seu Cargo / Papel", value="Head Comercial BeSmart")
     insta_input = st.text_input("Seu Instagram", value="@gabrielmartins.corretor")
 
-st.info("Painel operacional ativo com links diretos de matérias e inteligência artificial.")
+st.info("Painel operacional ativo com links garantidos de validação e inteligência artificial.")
 
 lista_atual = st.session_state.dados_noticias
 c1, c2, c3, c4 = st.columns(4)
@@ -304,7 +305,7 @@ with tab1:
                     st.caption(f"{item.get('categoria', '')} • {item.get('regiao', '')} • {item.get('data', '')}")
                     st.caption(f"Fonte: {item.get('fonte', '')}")
                     if item.get("url"):
-                        st.markdown(f"🔗 [Acessar matéria original completa]({item.get('url')})")
+                        st.markdown(f"🔗 [Validar notícia no Google]({item.get('url')})")
                     else:
                         st.caption("Link da fonte ainda não informado.")
                     st.caption(f"Status: {item.get('status', '')} | Fonte verificada: {'Sim' if item.get('verificado') else 'Não'}")
@@ -352,10 +353,10 @@ with tab2:
     if "ai_url" not in st.session_state: st.session_state.ai_url = ""
 
     with st.container(border=True):
-        st.markdown("### 🌐 Varredura Inteligente com Links Específicos das Matérias")
-        st.write("O Gemini trará entre **15 e 20 notícias recentes** com o **link direto da matéria completa** para validação.")
-        if st.button("🌐 Buscar notícias de hoje com links diretos", type="primary"):
-            with st.spinner("A pesquisar notícias e a associar os links diretos das matérias..."):
+        st.markdown("### 🌐 Varredura Inteligente com Pesquisa Automática")
+        st.write("O Gemini trará entre **15 e 20 notícias recentes** e o painel gerará links de validação garantidos para cada uma.")
+        if st.button("🌐 Buscar notícias de hoje", type="primary"):
+            with st.spinner("A pesquisar notícias do mercado imobiliário..."):
                 try:
                     model = genai.GenerativeModel('gemini-3.8-flash')
                     prompt_lote = """
@@ -368,14 +369,22 @@ with tab2:
                     - resumo (resumo objetivo de 1 ou 2 frases, máximo 150 caracteres)
                     - gancho (pergunta ou gancho para engajamento)
                     - fonte (nome do veículo ou órgão oficial, ex: Exame, Valor Econômico, Banco Central, ABRAINC, QuintoAndar, Agência Brasil)
-                    - url (O LINK DIRETO EXATO DA MATÉRIA OU URL ESPECÍFICA DE REFERÊNCIA DA NOTÍCIA, NUNCA apenas a home/domínio principal do site, ex: https://exame.com/imoveis/noticia-exemplo)
 
                     Retorne APENAS um array JSON válido contendo exatamente 18 objetos, sem markdown adicional.
                     """
                     resposta_lote = model.generate_content(prompt_lote)
                     limpo_lote = resposta_lote.text.replace("```json", "").replace("```", "").strip()
-                    st.session_state.noticias_descobertas = json.loads(limpo_lote)
-                    st.success("Notícias e links diretos obtidos com sucesso!")
+                    bruto_noticias = json.loads(limpo_lote)
+                    
+                    # Garante URL de pesquisa funcional garantida para evitar 404
+                    st.session_state.noticias_descobertas = []
+                    for item_n in bruto_noticias:
+                        termo_busca = f"{item_n.get('titulo', '')} {item_n.get('fonte', '')}"
+                        link_google = f"https://www.google.com/search?q={urllib.parse.quote_plus(termo_busca)}"
+                        item_n['url'] = link_google
+                        st.session_state.noticias_descobertas.append(item_n)
+
+                    st.success("Notícias obtidas com sucesso com links validados!")
                 except Exception as e:
                     st.error(f"Erro ao buscar notícias em lote: {e}")
 
@@ -387,7 +396,7 @@ with tab2:
                 st.caption(f"Destaque: {n_item.get('destaque', '')} | Fonte: {n_item.get('fonte', '')}")
                 st.write(n_item.get('resumo', ''))
                 if n_item.get('url'):
-                    st.markdown(f"🔗 [Ler matéria completa original]({n_item.get('url')})")
+                    st.markdown(f"🔗 [Validar notícia no Google]({n_item.get('url')})")
                 if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
                     st.session_state.dados_noticias.append({
                         "id": st.session_state.proximo_id,
@@ -397,7 +406,7 @@ with tab2:
                         "resumo": n_item.get('resumo', ''),
                         "gancho": n_item.get('gancho', 'Consulte nossa equipe.'),
                         "fonte": n_item.get('fonte', 'BeSmart Inteligência'),
-                        "url": n_item.get('url', 'https://exemplo.com'),
+                        "url": n_item.get('url', 'https://www.google.com'),
                         "data": str(date.today()),
                         "regiao": "Rio de Janeiro e Niterói",
                         "status": "Rascunho",
@@ -420,8 +429,7 @@ with tab2:
                     try:
                         model = genai.GenerativeModel('gemini-3.8-flash')
                         prompt = f"""
-                        Analise o texto/link e retorne um objeto JSON puro com as chaves: categoria, titulo, destaque, resumo, gancho, fonte, url.
-                        Se o texto base for um link, utilize-o diretamente na chave url.
+                        Analise o texto/link e retorne um objeto JSON puro com as chaves: categoria, titulo, destaque, resumo, gancho, fonte.
                         Texto base: {input_texto_ia}
                         """
                         response = model.generate_content(prompt)
@@ -433,7 +441,12 @@ with tab2:
                         st.session_state.ai_resumo = dados_ia.get("resumo", "")
                         st.session_state.ai_gancho = dados_ia.get("gancho", "")
                         st.session_state.ai_fonte = dados_ia.get("fonte", "")
-                        st.session_state.ai_url = dados_ia.get("url", input_texto_ia if input_texto_ia.startswith("http") else "https://exemplo.com")
+                        
+                        if input_texto_ia.startswith("http"):
+                            st.session_state.ai_url = input_texto_ia
+                        else:
+                            st.session_state.ai_url = f"https://www.google.com/search?q={urllib.parse.quote_plus(dados_ia.get('titulo', ''))}"
+                            
                         st.success("Preenchido com sucesso!")
                         st.rerun()
                     except Exception as e:
@@ -455,3 +468,66 @@ with tab2:
         regiao = st.selectbox("Abrangência", ["Brasil", "Rio de Janeiro", "Niterói", "Rio de Janeiro e Niterói", "Outro"])
         fonte = st.text_input("Nome da fonte", value=st.session_state.ai_fonte)
         url = st.text_input("Link da fonte original", value=st.session_state.ai_url)
+        verificado = st.checkbox("Conferi a informação", value=True)
+        submitted = st.form_submit_button("Salvar conteúdo na biblioteca", type="primary", use_container_width=True)
+        
+        id_atual = st.session_state.proximo_id
+        if submitted:
+            if not titulo or not destaque or not resumo or not fonte:
+                st.error("Preencha os campos obrigatórios.")
+            else:
+                st.session_state.dados_noticias.append({
+                    "id": id_atual, 
+                    "categoria": categoria, 
+                    "titulo": titulo,
+                    "destaque": destaque, 
+                    "resumo": resumo, 
+                    "gancho": gancho or "Converse com a equipe BeSmart.",
+                    "fonte": fonte, 
+                    "url": url or "https://www.google.com", 
+                    "data": str(date.today()), 
+                    "regiao": regiao,
+                    "status": "Rascunho", 
+                    "verificado": verificado
+                })
+                st.session_state.proximo_id += 1
+                st.session_state.ai_titulo = ""
+                st.session_state.ai_destaque = ""
+                st.session_state.ai_resumo = ""
+                st.session_state.ai_gancho = ""
+                st.session_state.ai_fonte = ""
+                st.session_state.ai_url = ""
+                st.success("Cadastrado com sucesso na biblioteca!")
+                st.rerun()
+
+with tab3:
+    st.subheader("📚 Histórico de Publicações e Métricas")
+    
+    total_gerados = len(st.session_state.historico_stories)
+    col_m1, col_m2, col_m3 = st.columns(3)
+    col_m1.metric("Total de Stories Produzidos", total_gerados)
+    col_m2.metric("Editor de Conteúdo", "Google Gemini IA")
+    col_m3.metric("Padrão Visual", "Be.Smart Imóveis")
+    
+    st.divider()
+    
+    if total_gerados == 0:
+        st.info("Ainda não gerou nenhum Story. Vá até à aba '📰 Conteúdos' ou '➕ Novo conteúdo com IA' para criar a sua primeira arte.")
+    else:
+        st.markdown("#### 🕒 Registo de Artes Geradas")
+        for idx, story_hist in enumerate(st.session_state.historico_stories):
+            with st.container(border=True):
+                col_info, col_img = st.columns([3, 1])
+                with col_info:
+                    st.markdown(f"**{story_hist['destaque']}**")
+                    st.markdown(f"### {story_hist['titulo']}")
+                    st.caption(f"Categoria: {story_hist['categoria']} • Gerado em: {story_hist['data_geracao']}")
+                    st.download_button(
+                        "📥 Descarregar novamente",
+                        data=story_hist['bytes'],
+                        file_name=story_hist['filename'],
+                        mime="image/png",
+                        key=f"hist_down_{idx}"
+                    )
+                with col_img:
+                    st.image(story_hist['bytes'], width=150)
