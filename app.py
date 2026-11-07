@@ -172,4 +172,89 @@ def inserir_logotipo_inteligente(im, x, y, largura_desejada=420):
 def make_story(item, nome_corretor, cargo_corretor, insta_corretor):
     W, H = 1080, 1920
     
-    base_img = carregar_imagem_contexto(item.get("id", 1), item.get
+    base_img = carregar_imagem_contexto(item.get("id", 1), item.get("categoria", ""))
+    base_img = ImageOps.fit(base_img, (W, H), method=Image.Resampling.LANCZOS)
+    base_img = base_img.filter(ImageFilter.GaussianBlur(radius=6))
+
+    overlay = Image.new("RGBA", (W, H), (12, 10, 18, 220))
+    im = Image.alpha_composite(base_img.convert("RGBA"), overlay).convert("RGB")
+    
+    margin = 90
+    
+    inserir_logotipo_inteligente(im, x=margin, y=110, largura_desejada=420)
+    
+    d = ImageDraw.Draw(im)
+    d.line((margin, 270, W-margin, 270), fill="#4A3B66", width=2)
+
+    cat = item.get("categoria", "").upper()
+    fnt_cat = obter_fonte(30, True)
+    d.text((margin, 340), cat[:38], font=fnt_cat, fill="#B99AE8")
+    
+    title_font = obter_fonte(72, True)
+    lines = wrap_lines(d, item.get("destaque", "").strip(), title_font, W-2*margin)
+    y = 430
+    for line in lines[:4]:
+        d.text((margin, y), line, font=title_font, fill=WHITE)
+        y += 92
+
+    y += 24
+    d.rounded_rectangle((margin, y, margin+280, y+14), radius=7, fill=PURPLE)
+    
+    body_font = obter_fonte(44)
+    body_lines = wrap_lines(d, item.get("resumo", "").strip(), body_font, W-2*margin)
+    y += 90
+    for line in body_lines[:6]:
+        d.text((margin, y), line, font=body_font, fill=SILVER)
+        y += 66
+
+    y += 40
+    fonte_texto = f"Fonte: {item.get('fonte', 'Verificado na fonte oficial')}"
+    fnt_fonte = obter_fonte(28, True)
+    d.text((margin, y), fonte_texto[:60], font=fnt_fonte, fill="#A49CB8")
+
+    card_corr_top = 1350
+    avatar_x = 220
+    avatar_y = card_corr_top + 75
+    avatar_r = 75
+    
+    d.ellipse((avatar_x - avatar_r, avatar_y - avatar_r, avatar_x + avatar_r, avatar_y + avatar_r), fill="#9966FF")
+    fnt_avatar = obter_fonte(48, True)
+    d.text((avatar_x - 30, avatar_y - 32), "GM", font=fnt_avatar, fill=WHITE)
+
+    text_left = avatar_x + avatar_r + 35
+    fnt_nome = obter_fonte(44, True)
+    fnt_cargo = obter_fonte(28, True)
+    fnt_insta = obter_fonte(26)
+    
+    d.text((text_left, card_corr_top + 15), nome_corretor[:22], font=fnt_nome, fill=WHITE)
+    d.text((text_left, card_corr_top + 72), cargo_corretor[:28], font=fnt_cargo, fill="#B99AE8")
+    d.text((text_left, card_corr_top + 110), insta_corretor[:30], font=fnt_insta, fill=MUTED)
+
+    footer_y = 1780
+    d.line((margin, footer_y - 30, W-margin, footer_y - 30), fill="#4A3B66", width=2)
+    fnt_foot1 = obter_fonte(28, True)
+    fnt_foot2 = obter_fonte(22)
+    d.text((margin, footer_y), f"Fale com a nossa equipe • {insta_corretor}", font=fnt_foot1, fill="#B99AE8")
+    d.text((margin, footer_y + 42), "informação que aproxima você do mercado imobiliário", font=fnt_foot2, fill=MUTED)
+
+    out = BytesIO()
+    im.save(out, format="PNG")
+    out.seek(0)
+    return out
+
+st.markdown('<div class="brand">be.smart <span>news</span></div><div class="small-muted">INTELIGÊNCIA IMOBILIÁRIA • PAINEL ADMINISTRATIVO</div>', unsafe_allow_html=True)
+st.write("")
+
+with st.sidebar:
+    st.markdown("### ⚙️ Configurações do Corretor")
+    st.info("Personalize os dados que aparecerão na arte e no rodapé dos seus Stories.")
+    nome_input = st.text_input("Seu Nome", value="Gabriel Martins")
+    cargo_input = st.text_input("Seu Cargo / Papel", value="Head Comercial BeSmart")
+    insta_input = st.text_input("Seu Instagram", value="@gabrielmartins.corretor")
+
+st.info("Painel operacional ativo com links diretos de matérias e inteligência artificial.")
+
+lista_atual = st.session_state.dados_noticias
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Conteúdos cadastrados", len(lista_atual))
+c2.metric("Aguardando aprovação", sum(1 for i in lista_atual if isinstance(i, dict) and i.get("status") == "Rascunho"))
