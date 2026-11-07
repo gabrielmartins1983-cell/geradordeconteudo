@@ -5,6 +5,8 @@ from datetime import date, datetime
 import os
 import json
 import random
+import urllib.parse
+import urllib.request
 import google.generativeai as genai
 
 st.set_page_config(page_title="BeSmart News | Painel administrativo", page_icon="🟣", layout="wide")
@@ -107,14 +109,40 @@ def wrap_lines(draw, text, fnt, max_width):
     if current: lines.append(current)
     return lines
 
-def criar_fundo_story(item_id, categoria):
-    im = Image.new("RGB", (1080, 1920), (15, 13, 24))
-    draw = ImageDraw.Draw(im)
-    for i in range(0, 1920, 40):
-        val = int(15 + (i / 1920) * 25)
-        draw.line([(0, i), (1080, i)], fill=(val, val, val + 15), width=2)
-    draw.rectangle([90, 90, 990, 1830], outline="#332744", width=3)
-    return im
+def carregar_imagem_contexto(item_id, categoria):
+    termos_map = {
+        "Juros e financiamento": ["skyscraper", "financial", "architecture", "bank"],
+        "Mercado regional": ["cityscape", "urban", "street", "neighborhood"],
+        "Lançamentos imobiliários": ["modern", "luxury", "property", "apartment"],
+        "Valorização de bairros": ["city", "development", "bridge", "aerial"]
+    }
+    lista_termos = termos_map.get(categoria, ["architecture", "realestate", "building", "city"])
+    termo_escolhido = lista_termos[item_id % len(lista_termos)]
+    
+    # Gera uma seed única para a imagem baseada no ID e no termo
+    seed_val = f"besmart_story_img_{item_id}_{termo_escolhido}"
+    url = f"https://picsum.photos/seed/{seed_val}/1080/1920"
+    
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            img_data = resp.read()
+            base_img = Image.open(BytesIO(img_data)).convert("RGB")
+            
+            # Aplica desfoque e uma camada escura por cima para garantir a leitura do texto
+            base_img = base_img.filter(ImageFilter.GaussianBlur(radius=5))
+            overlay = Image.new("RGBA", (1080, 1920), (12, 10, 18, 215))
+            im = Image.alpha_composite(base_img.convert("RGBA"), overlay).convert("RGB")
+            return im
+    except Exception:
+        # PLANO B: Se a internet falhar ou a imagem não carregar, usa o fundo escuro limpo
+        im = Image.new("RGB", (1080, 1920), (15, 13, 24))
+        draw = ImageDraw.Draw(im)
+        for i in range(0, 1920, 40):
+            val = int(15 + (i / 1920) * 25)
+            draw.line([(0, i), (1080, i)], fill=(val, val, val + 15), width=2)
+        draw.rectangle([90, 90, 990, 1830], outline="#332744", width=3)
+        return im
 
 def inserir_logotipo_inteligente(im, x, y, largura_desejada=420):
     candidatos = [
@@ -145,7 +173,7 @@ def inserir_logotipo_inteligente(im, x, y, largura_desejada=420):
 
 def make_story(item, corretores_selecionados):
     W, H = 1080, 1920
-    im = criar_fundo_story(item.get("id", 1), item.get("categoria", ""))
+    im = carregar_imagem_contexto(item.get("id", 1), item.get("categoria", ""))
     
     margin = 90
     inserir_logotipo_inteligente(im, x=margin, y=110, largura_desejada=420)
