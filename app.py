@@ -7,8 +7,6 @@ import json
 import random
 import urllib.parse
 import urllib.request
-import xml.etree.ElementTree as ET
-import html.parser
 import google.generativeai as genai
 
 st.set_page_config(page_title="BeSmart News | Painel administrativo", page_icon="🟣", layout="wide")
@@ -48,9 +46,9 @@ if "dados_noticias" not in st.session_state:
             "id": 1, "categoria": "Juros e financiamento",
             "titulo": "Como a taxa de juros influencia o financiamento imobiliário atual?",
             "destaque": "JUROS E CRÉDITO IMOBILIÁRIO",
-            "resumo": "A alta nas taxas encarece o Custo Efetivo Total, exigindo maior valor de entrada e reavaliação imediata de crédito para novos compradores.",
+            "resumo": "As condições correntes de crédito impactam diretamente o Custo Efetivo Total (CET) e o planejamento financeiro dos clientes no cenário atual.",
             "fonte": "Banco Central",
-            "url": "https://www.google.com", 
+            "url": "https://www.google.com/search?q=financiamento", 
             "data": str(date.today()), 
             "regiao": "Brasil",
             "status": "Rascunho", 
@@ -111,63 +109,6 @@ def wrap_lines(draw, text, fnt, max_width):
             current = word
     if current: lines.append(current)
     return lines
-
-class HTMLTextExtractor(html.parser.HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.text_chunks = []
-        self.in_script = False
-
-    def handle_starttag(self, tag, attrs):
-        if tag in ['script', 'style']:
-            self.in_script = True
-
-    def handle_endtag(self, tag):
-        if tag in ['script', 'style']:
-            self.in_script = False
-
-    def handle_data(self, data):
-        if not self.in_script:
-            t = data.strip()
-            if t:
-                self.text_chunks.append(t)
-
-def ler_conteudo_url(url):
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            html_bytes = resp.read(200000)
-            html_content = html_bytes.decode('utf-8', errors='ignore')
-            
-            parser = HTMLTextExtractor()
-            parser.feed(html_content)
-            texto_limpo = " ".join(parser.text_chunks)
-            return texto_limpo[:1200]
-    except Exception:
-        return ""
-
-def gerar_resumo_inteligente(titulo, texto_base):
-    try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        prompt = f"""Com base no título da matéria "{titulo}" e no conteúdo extraído do site abaixo, elabore um resumo objetivo, profissional e de alto impacto de no máximo 130 caracteres, focado no ponto mais importante para o público e investidores imobiliários. Não use frases genéricas, traga informação concreta.
-        
-Conteúdo extraído: {texto_base[:800]}"""
-        
-        resp = model.generate_content(prompt)
-        resumo = resp.text.strip().replace('"', '')
-        if len(resumo) > 10:
-            return resumo[:140]
-    except Exception:
-        pass
-    
-    t_lower = titulo.lower()
-    if "juros" in t_lower or "selic" in t_lower:
-        return "A alta nas taxas impacta o Custo Efetivo Total, exigindo reavaliação imediata de crédito e planejamento de entrada."
-    elif "crédito" in t_lower or "banco" in t_lower:
-        return "Novas regras de financiamento alteram a aprovação de crédito para imóveis usados, exigindo atenção ao perfil de renda."
-    elif "lançamento" in t_lower or "construtora" in t_lower:
-        return "Novos empreendimentos com foco em plantas compactas lideram a alta procura por valorização e moradia moderna."
-    return f"Especialistas destacam os impactos diretos desta novidade no mercado, alterando o planejamento de investidores e compradores."
 
 def carregar_imagem_contexto(item_id, categoria):
     base = "https://images.unsplash.com/photo-"
@@ -254,31 +195,33 @@ def make_story(item, corretores_selecionados):
 
     cat = item.get("categoria", "").upper()
     fnt_cat = obter_fonte(30, True)
-    d.text((margin, 340), cat[:38], font=fnt_cat, fill="#B99AE8")
+    d.text((margin, 340), cat, font=fnt_cat, fill="#B99AE8")
     
-    # Ajuste de tamanho de fonte e espaçamento para evitar cortes no título
-    title_font = obter_fonte(56, True)
-    lines = wrap_lines(d, item.get("destaque", "").strip(), title_font, W-2*margin)
+    # Mantém o tamanho da fonte original (64pt) mas permite textos maiores sem cortes bruscos
+    title_font = obter_fonte(64, True)
+    destaque_texto = item.get("destaque", "").strip()
+    lines = wrap_lines(d, destaque_texto, title_font, W-2*margin)
     y = 420
-    for line in lines[:4]:
+    for line in lines[:5]:  # Permite até 5 linhas de destaque
         d.text((margin, y), line, font=title_font, fill=WHITE)
-        y += 74
+        y += 82
 
-    y += 15
-    d.rounded_rectangle((margin, y, margin+280, y+12), radius=6, fill=PURPLE)
+    y += 18
+    d.rounded_rectangle((margin, y, margin+280, y+14), radius=7, fill=PURPLE)
     
-    # Ajuste de tamanho de fonte e espaçamento do resumo
-    body_font = obter_fonte(38)
-    body_lines = wrap_lines(d, item.get("resumo", "").strip(), body_font, W-2*margin)
-    y += 50
-    for line in body_lines[:6]:
+    # Mantém o tamanho da fonte original do resumo (42pt) com capacidade estendida
+    body_font = obter_fonte(42)
+    resumo_texto = item.get("resumo", "").strip()
+    body_lines = wrap_lines(d, resumo_texto, body_font, W-2*margin)
+    y += 75
+    for line in body_lines[:8]:  # Permite até 8 linhas de resumo descritivo
         d.text((margin, y), line, font=body_font, fill=SILVER)
-        y += 54
+        y += 60
 
-    y += 20
+    y += 30
     fonte_texto = f"Fonte: {item.get('fonte', 'Verificado')}"
-    fnt_fonte = obter_fonte(26, True)
-    d.text((margin, y), fonte_texto[:60], font=fnt_fonte, fill="#A49CB8")
+    fnt_fonte = obter_fonte(28, True)
+    d.text((margin, y), fonte_texto, font=fnt_fonte, fill="#A49CB8")
 
     card_corr_top = 1320
     avatar_x = 220
@@ -302,9 +245,9 @@ def make_story(item, corretores_selecionados):
         fnt_cargo = obter_fonte(24, True)
         fnt_insta = obter_fonte(22)
         
-        d.text((text_left, bloco_top), nome_corr[:26], font=fnt_nome, fill=WHITE)
-        d.text((text_left, bloco_top + 48), info_corr['cargo'][:32], font=fnt_cargo, fill="#B99AE8")
-        d.text((text_left, bloco_top + 80), info_corr['insta'][:34], font=fnt_insta, fill=MUTED)
+        d.text((text_left, bloco_top), nome_corr, font=fnt_nome, fill=WHITE)
+        d.text((text_left, bloco_top + 48), info_corr['cargo'], font=fnt_cargo, fill="#B99AE8")
+        d.text((text_left, bloco_top + 80), info_corr['insta'], font=fnt_insta, fill=MUTED)
 
     footer_y = 1800
     d.line((margin, footer_y - 25, W-margin, footer_y - 25), fill="#4A3B66", width=2)
@@ -473,19 +416,20 @@ with tab1:
                             st.rerun()
 
 with tab2:
-    st.subheader("Gerador de Notícias (Leitura Profunda da Matéria)")
+    st.subheader("Gerador de Notícias (Google News RSS)")
     
     with st.container(border=True):
-        st.markdown("### 🌐 Varredura e Leitura de Conteúdo")
-        st.write("Clique no botão para buscar matérias recentes, aceder ao conteúdo de cada link em tempo real e extrair a informação essencial.")
+        st.markdown("### 🌐 Varredura de Matérias Reais")
+        st.write("Clique no botão para buscar notícias reais e recentes diretamente do Google News com links diretos para validação.")
         
-        if st.button("🚀 Buscar e Ler Matérias do Dia", type="primary"):
+        if st.button("🚀 Buscar Matérias Recentes", type="primary"):
             noticias_extraidas = []
             
             termos_pesquisa = [
                 "mercado imobiliario",
                 "credito imobiliario juros",
-                "lancamentos imobiliarios"
+                "lancamentos imobiliarios",
+                "financiamento imobiliario"
             ]
             
             for termo in termos_pesquisa:
@@ -496,22 +440,24 @@ with tab2:
                         xml_data = resp.read()
                         root = ET.fromstring(xml_data)
                         
-                        for item in root.findall('.//item')[:4]:
+                        for item in root.findall('.//item')[:5]:
                             titulo_original = item.find('title').text if item.find('title') is not None else "Notícia Imobiliária"
                             link_original = item.find('link').text if item.find('link') is not None else "https://www.google.com"
+                            descricao = item.find('description').text if item.find('description') is not None else ""
                             
                             partes = titulo_original.split(" - ")
                             titulo_limpo = partes[0]
                             fonte_nome = partes[1] if len(partes) > 1 else "Google News"
                             
-                            texto_extraido = ler_conteudo_url(link_original)
-                            resumo_efetivo = gerar_resumo_inteligente(titulo_limpo, texto_extraido)
+                            resumo_importante = f"Acompanhe as principais análises sobre {termo} e oriente seus clientes com base nos dados mais recentes do mercado."
+                            if len(descricao) > 30 and "<" not in descricao:
+                                resumo_importante = descricao.strip()
 
                             noticias_extraidas.append({
                                 "categoria": "Juros e financiamento" if "juros" in termo or "credito" in termo else "Lançamentos imobiliários",
-                                "titulo": titulo_limpo[:80],
-                                "destaque": titulo_limpo[:35].upper(),
-                                "resumo": resumo_efetivo,
+                                "titulo": titulo_limpo,
+                                "destaque": titulo_limpo.upper(),
+                                "resumo": resumo_importante,
                                 "fonte": fonte_nome,
                                 "url": link_original
                             })
@@ -526,20 +472,20 @@ with tab2:
                     unicas.append(n)
             
             random.shuffle(unicas)
-            st.session_state.noticias_descobertas = unicas[:15]
+            st.session_state.noticias_descobertas = unicas[:20]
             
             if st.session_state.noticias_descobertas:
-                st.success(f"{len(st.session_state.noticias_descobertas)} matérias analisadas e lidas com sucesso!")
+                st.success(f"{len(st.session_state.noticias_descobertas)} matérias reais extraídas com sucesso!")
             else:
                 st.warning("Não foi possível carregar o feed neste momento. Utilize o cadastro manual abaixo.")
 
     if st.session_state.noticias_descobertas:
-        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Lidas Prontas para Adicionar")
+        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Encontradas")
         for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
             with st.container(border=True):
                 st.markdown(f"**[{n_item.get('categoria', '')}]** {n_item.get('titulo', '')}")
                 st.caption(f"Destaque: {n_item.get('destaque', '')} | Veículo / Fonte: {n_item.get('fonte', '')}")
-                st.write(f"**Informação extraída da matéria:** {n_item.get('resumo', '')}")
+                st.write(f"**Resumo:** {n_item.get('resumo', '')}")
                 if n_item.get('url'):
                     st.markdown(f"🔗 **[Abrir matéria original completa]({n_item.get('url')})**")
                 
@@ -581,8 +527,8 @@ with tab2:
     with st.form("new_item", clear_on_submit=False):
         categoria = st.selectbox("Categoria", lista_categorias)
         titulo = st.text_input("Título")
-        destaque = st.text_input("Chamada (MAIÚSCULAS)")
-        resumo = st.text_area("Resumo com o conteúdo importante da matéria")
+        destaque = st.text_input("Chamada em Destaque (MAIÚSCULAS)")
+        resumo = st.text_area("Resumo Detalhado da Matéria")
         fonte = st.text_input("Fonte")
         url_manual = st.text_input("Link direto da matéria original", placeholder="https://...")
         submitted = st.form_submit_button("Salvar na biblioteca", type="primary")
@@ -633,7 +579,4 @@ with tab3:
                     with col_h2:
                         if st.button("🗑️ Apagar Story", key=f"del_hist_{idx}", use_container_width=True):
                             st.session_state.historico_stories.pop(idx)
-                            st.success("Story removido do histórico!")
-                            st.rerun()
-                with col_img:
-                    st.image(story_hist['bytes'], width=150)
+                            st
