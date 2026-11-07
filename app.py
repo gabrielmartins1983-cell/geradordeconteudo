@@ -38,7 +38,7 @@ if "dados_noticias" not in st.session_state:
             "categoria": "Juros e financiamento",
             "titulo": "Painel de Inteligência Imobiliária BeSmart - Inicie a varredura dinâmica",
             "destaque": "PAINEL ADMINISTRATIVO",
-            "resumo": "Utilize a aba de varredura para capturar notícias recentes diretamente de portais de referência em tempo real.",
+            "resumo": "Utilize a aba ao lado para executar a varredura diária em portais de referência e capturar notícias recentes com links diretos.",
             "fonte": "Sistema BeSmart",
             "url": "https://www.google.com", 
             "data": str(date.today()), 
@@ -218,4 +218,54 @@ def make_story(item, corretores_selecionados):
     espacamento_bloco = 150 if len(corretores_selecionados) <= 2 else 120
     
     for idx_corr, nome_corr in enumerate(corretores_selecionados[:3]):
-        info_corr = st.session
+        info_corr = st.session_state.corretores_equipa.get(nome_corr, {"cargo": "Consultor Imobiliário", "insta": "@besmartimoveis"})
+        
+        avatar_y = card_corr_top + (idx_corr * espacamento_bloco) + 50
+        avatar_r = 55
+        
+        d.ellipse((avatar_x - avatar_r, avatar_y - avatar_r, avatar_x + avatar_r, avatar_y + avatar_r), fill="#9966FF")
+        fnt_avatar = obter_fonte(38, True)
+        iniciais = "".join([n[0] for n in nome_corr.split()[:2]]).upper()
+        d.text((avatar_x - 24, avatar_y - 25), iniciais, font=fnt_avatar, fill=WHITE)
+
+        text_left = avatar_x + avatar_r + 30
+        bloco_top = card_corr_top + (idx_corr * espacamento_bloco)
+        
+        fnt_nome = obter_fonte(38, True)
+        fnt_cargo = obter_fonte(24, True)
+        fnt_insta = obter_fonte(22)
+        
+        d.text((text_left, bloco_top), nome_corr, font=fnt_nome, fill=WHITE)
+        d.text((text_left, bloco_top + 48), info_corr['cargo'], font=fnt_cargo, fill="#B99AE8")
+        d.text((text_left, bloco_top + 80), info_corr['insta'], font=fnt_insta, fill=MUTED)
+
+    footer_y = 1800
+    d.line((margin, footer_y - 25, W-margin, footer_y - 25), fill="#4A3B66", width=2)
+    fnt_foot1 = obter_fonte(26, True)
+    d.text((margin, footer_y), "Fale com a nossa equipe • Be.Smart Imóveis", font=fnt_foot1, fill="#B99AE8")
+
+    out = BytesIO()
+    im.save(out, format="PNG")
+    out.seek(0)
+    return out
+
+st.markdown('<div class="brand">be.smart <span>news</span></div><div class="small-muted">INTELIGÊNCIA IMOBILIÁRIA • PAINEL ADMINISTRATIVO</div>', unsafe_allow_html=True)
+st.write("")
+
+with st.sidebar:
+    st.markdown("### ⚙️ Gestão de Corretores")
+    
+    lista_nomes = list(st.session_state.corretores_equipa.keys())
+    selecao_edicao = st.selectbox("Selecionar Corretor", ["➕ Adicionar Novo Corretor"] + lista_nomes)
+    
+    if selecao_edicao == "➕ Adicionar Novo Corretor":
+        with st.form("form_novo_corretor"):
+            novo_nome = st.text_input("Nome do Corretor")
+            novo_cargo = st.text_input("Cargo", value="Corretor Associado")
+            novo_insta = st.text_input("Instagram", value="@besmartimoveis")
+            salvar_novo = st.form_submit_button("💾 Salvar Novo Corretor", use_container_width=True)
+            
+            if salvar_novo:
+                if novo_nome:
+                    st.session_state.corretores_equipa[novo_nome] = {"cargo": novo_cargo, "insta": novo_insta}
+                    st.success("Corretor gravado com sucesso!")
