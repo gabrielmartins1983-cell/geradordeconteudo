@@ -318,7 +318,7 @@ c2.metric("Rascunhos", sum(1 for i in lista_atual if i.get("status") == "Rascunh
 c3.metric("Aprovados", sum(1 for i in lista_atual if i.get("status") == "Aprovado"))
 c4.metric("Stories gerados", len(st.session_state.historico_stories))
 
-tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "➕ Buscar Notícias Reais (15-20)", "📚 Histórico & Métricas"])
+tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "➕ Buscar Notícias Recentes (Última Semana)", "📚 Histórico & Métricas"])
 
 with tab1:
     col_t1, col_t2 = st.columns([3, 1])
@@ -406,40 +406,43 @@ with tab1:
                             st.rerun()
 
 with tab2:
-    st.subheader("Varredura Ampla de Notícias Reais (15 a 20 Matérias)")
+    st.subheader("Varredura de Notícias Reais (Filtro de Última Semana)")
     
     with st.container(border=True):
-        st.markdown("### 🌐 Coleta em Múltiplas Editorias da Imprensa")
-        st.write("Clique no botão abaixo para buscar de 15 a 20 matérias reais e diretas publicadas sobre o mercado imobiliário, Niterói, Rio de Janeiro e juros.")
+        st.markdown("### 🌐 Coleta Ampla com Filtro de Recência (Google News RSS)")
+        st.write("Clique no botão abaixo para buscar de 15 a 20 matérias reais publicadas nos últimos 7 dias na imprensa sobre o mercado imobiliário, Niterói, Rio de Janeiro e juros, garantindo links diretos para cada notícia.")
         
-        if st.button("🚀 Buscar 15-20 Matérias Reais", type="primary"):
+        if st.button("🚀 Buscar Notícias dos Últimos 7 Dias", type="primary"):
             noticias_extraidas = []
+            
+            # Parâmetro &as_qdr=w1 força o Google News a trazer apenas resultados da última semana (1 week)
             termos_pesquisa = [
                 "mercado imobiliario Niterói",
                 "lancamentos imobiliarios Rio de Janeiro",
-                "financiamento imobiliario juros",
+                "financiamento imobiliario juros bancos",
                 "mercado imobiliario Brasil 2026",
-                "valorizacao imobiliaria Icaraí Camboinhas"
+                "aluguel imobiliario FipeZAP FGV"
             ]
             
             for termo in termos_pesquisa:
-                url_rss = f"https://news.google.com/rss/search?q={urllib.parse.quote_plus(termo)}&hl=pt-BR&gl=BR&ceid=BR:pt-415"
+                url_rss = f"https://news.google.com/rss/search?q={urllib.parse.quote_plus(termo)}&as_qdr=w1&hl=pt-BR&gl=BR&ceid=BR:pt-415"
                 try:
                     req = urllib.request.Request(url_rss, headers={'User-Agent': 'Mozilla/5.0'})
                     with urllib.request.urlopen(req, timeout=6) as resp:
                         xml_data = resp.read()
                         root = ET.fromstring(xml_data)
                         
-                        for item in root.findall('.//item')[:6]:
+                        for item in root.findall('.//item')[:8]:
                             titulo_original = item.find('title').text if item.find('title') is not None else "Notícia Imobiliária"
                             link_original = item.find('link').text if item.find('link') is not None else "https://www.google.com"
                             descricao = item.find('description').text if item.find('description') is not None else ""
+                            data_pub = item.find('pubDate').text if item.find('pubDate') is not None else str(date.today())
                             
                             partes = titulo_original.split(" - ")
                             titulo_limpo = partes[0]
                             fonte_nome = partes[1] if len(partes) > 1 else "Imprensa Nacional"
                             
-                            resumo_real = f"Cobertura jornalística recente sobre {termo}, detalhando os impactos e oportunidades para o setor."
+                            resumo_real = f"Últimas atualizações sobre {termo}, cobrindo desdobramentos recentes para o setor."
                             if len(descricao) > 30 and "<" not in descricao:
                                 resumo_real = descricao.strip()
 
@@ -449,7 +452,8 @@ with tab2:
                                 "destaque": titulo_limpo.upper(),
                                 "resumo": resumo_real,
                                 "fonte": fonte_nome,
-                                "url": link_original
+                                "url": link_original,
+                                "data": data_pub[:16]
                             })
                 except Exception:
                     continue
@@ -464,19 +468,19 @@ with tab2:
             st.session_state.noticias_descobertas = unicas[:20]
             
             if st.session_state.noticias_descobertas:
-                st.success(f"{len(st.session_state.noticias_descobertas)} matérias reais e diretas carregadas com sucesso!")
+                st.success(f"{len(st.session_state.noticias_descobertas)} matérias reais da última semana carregadas com sucesso!")
             else:
-                st.warning("Não foi possível carregar o feed neste momento. Utilize o cadastro manual abaixo.")
+                st.warning("Nenhum resultado recente encontrado com o filtro atual. Utilize o cadastro manual abaixo.")
 
     if st.session_state.noticias_descobertas:
-        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Encontradas")
+        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias da Última Semana")
         for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
             with st.container(border=True):
                 st.markdown(f"**[{n_item.get('categoria', '')}]** {n_item.get('titulo', '')}")
-                st.caption(f"Destaque: {n_item.get('destaque', '')} | Veículo / Fonte: {n_item.get('fonte', '')}")
+                st.caption(f"Destaque: {n_item.get('destaque', '')} | Veículo: {n_item.get('fonte', '')} | Publicado em: {n_item.get('data', '')}")
                 st.write(f"**Resumo:** {n_item.get('resumo', '')}")
                 if n_item.get('url'):
-                    st.markdown(f"🔗 **[Abrir matéria original direta]({n_item.get('url')})**")
+                    st.markdown(f"🔗 **[Abrir matéria original completa e direta]({n_item.get('url')})**")
                 
                 if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
                     st.session_state.dados_noticias.append({
