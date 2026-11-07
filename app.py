@@ -475,4 +475,100 @@ with tab2:
                     if "url_custom" in n_item:
                         link_final = n_item["url_custom"]
                     else:
-                        link_final = f"
+                        link_final = f"https://www.google.com/search?q={urllib.parse.quote_plus(n_item.get('titulo', '') + ' ' + n_item.get('fonte', ''))}"
+                    
+                    st.session_state.dados_noticias.append({
+                        "id": st.session_state.proximo_id,
+                        "categoria": n_item.get('categoria', 'Mercado regional'),
+                        "titulo": n_item.get('titulo', ''),
+                        "destaque": n_item.get('destaque', ''),
+                        "resumo": n_item.get('resumo', ''),
+                        "gancho": "Consulte nossa equipe especializada.",
+                        "fonte": n_item.get('fonte', 'BeSmart Inteligência'),
+                        "url": link_final,
+                        "data": str(date.today()),
+                        "regiao": "Rio de Janeiro e Niterói",
+                        "status": "Rascunho",
+                        "verificado": True
+                    })
+                    st.session_state.proximo_id += 1
+                    st.success("Notícia adicionada com sucesso à biblioteca!")
+                    st.rerun()
+
+    st.divider()
+    st.markdown("#### ✍️ Cadastro Manual Direto:")
+
+    with st.form("new_item", clear_on_submit=False):
+        categoria = st.selectbox(
+            "Categoria", 
+            [
+                "Juros e financiamento", "Bancos e crédito", "Lançamentos imobiliários",
+                "Valorização de bairros", "Mercado regional", "Investimento imobiliário",
+                "Economia", "Legislação", "Infraestrutura", "Conteúdo educativo"
+            ]
+        )
+        titulo = st.text_input("Título da notícia de hoje", placeholder="Ex.: Nova taxa Selic definida pelo Copom")
+        destaque = st.text_input("Chamada principal da arte (MAIÚSCULAS)", placeholder="Ex.: DECISÃO DA TAXA SELIC")
+        resumo = st.text_area("Resumo curto da pílula", placeholder="Resuma o impacto da notícia...")
+        gancho = st.text_input("Chamada para engajamento", value="Fale com a nossa equipe.")
+        regiao = st.selectbox("Abrangência", ["Brasil", "Rio de Janeiro", "Niterói", "Rio de Janeiro e Niterói", "Outro"])
+        fonte = st.text_input("Nome da fonte", placeholder="Ex.: Valor Econômico")
+        url = st.text_input("Link da matéria original (opcional)", placeholder="https://...")
+        verificado = st.checkbox("Conferi a informação", value=True)
+        submitted = st.form_submit_button("Salvar notícia na biblioteca", type="primary", use_container_width=True)
+        
+        id_atual = st.session_state.proximo_id
+        if submitted:
+            if not titulo or not destaque or not resumo or not fonte:
+                st.error("Preencha os campos obrigatórios.")
+            else:
+                link_final = url if url.startswith("http") else f"https://www.google.com/search?q={urllib.parse.quote_plus(titulo + ' ' + fonte)}"
+                st.session_state.dados_noticias.append({
+                    "id": id_atual, 
+                    "categoria": categoria, 
+                    "titulo": titulo,
+                    "destaque": destaque, 
+                    "resumo": resumo, 
+                    "gancho": gancho,
+                    "fonte": fonte, 
+                    "url": link_final, 
+                    "data": str(date.today()), 
+                    "regiao": regiao,
+                    "status": "Rascunho", 
+                    "verificado": verificado
+                })
+                st.session_state.proximo_id += 1
+                st.success("Cadastrado com sucesso na biblioteca!")
+                st.rerun()
+
+with tab3:
+    st.subheader("📚 Histórico de Publicações e Métricas")
+    
+    total_gerados = len(st.session_state.historico_stories)
+    col_m1, col_m2, col_m3 = st.columns(3)
+    col_m1.metric("Total de Stories Produzidos", total_gerados)
+    col_m2.metric("Editor de Conteúdo", "Be.Smart Inteligência")
+    col_m3.metric("Padrão Visual", "Be.Smart Imóveis")
+    
+    st.divider()
+    
+    if total_gerados == 0:
+        st.info("Ainda não gerou nenhum Story. Vá até à aba '📰 Conteúdos' ou '➕ Novo conteúdo do dia' para criar a sua primeira arte.")
+    else:
+        st.markdown("#### 🕒 Registo de Artes Geradas")
+        for idx, story_hist in enumerate(st.session_state.historico_stories):
+            with st.container(border=True):
+                col_info, col_img = st.columns([3, 1])
+                with col_info:
+                    st.markdown(f"**{story_hist['destaque']}**")
+                    st.markdown(f"### {story_hist['titulo']}")
+                    st.caption(f"Categoria: {story_hist['categoria']} • Responsáveis: {story_hist.get('corretores', 'Gabriel Martins')} • Gerado em: {story_hist['data_geracao']}")
+                    st.download_button(
+                        "📥 Descarregar novamente",
+                        data=story_hist['bytes'],
+                        file_name=story_hist['filename'],
+                        mime="image/png",
+                        key=f"hist_down_{idx}"
+                    )
+                with col_img:
+                    st.image(story_hist['bytes'], width=150)
