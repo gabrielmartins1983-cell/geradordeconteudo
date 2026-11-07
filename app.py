@@ -108,16 +108,11 @@ def wrap_lines(draw, text, fnt, max_width):
     return lines
 
 def criar_fundo_story(item_id, categoria):
-    # Fundo estilizado com gradiente geométrico seguro via Pillow (sem dependência de rede externa)
     im = Image.new("RGB", (1080, 1920), (15, 13, 24))
     draw = ImageDraw.Draw(im)
-    
-    # Detalhes visuais de fundo
     for i in range(0, 1920, 40):
         val = int(15 + (i / 1920) * 25)
         draw.line([(0, i), (1080, i)], fill=(val, val, val + 15), width=2)
-        
-    # Elemento geométrico em destaque no topo
     draw.rectangle([90, 90, 990, 1830], outline="#332744", width=3)
     return im
 
@@ -383,7 +378,7 @@ with tab1:
 
                     with col_b3:
                         if st.button("🗑️ Excluir", key=f"delete_{item.get('id')}_{idx_item}", use_container_width=True):
-                            st.session_state.dados_noticias = [x for x in st.session_state.dados_noticias if x.get('id') != item.get('id')]
+                            st.session_state.dados_noticias = [x for x in st.session_state.dados_noticias if x.get('id'] != item.get('id')]
                             st.success("Conteúdo excluído com sucesso!")
                             st.rerun()
 
@@ -412,22 +407,4 @@ with tab2:
                 """
                 resposta_lote = model.generate_content(prompt_lote)
                 limpo_lote = resposta_lote.text.replace("```json", "").replace("```", "").strip()
-                bruto_noticias = json.loads(limpo_lote)
-                
-                st.session_state.noticias_descobertas = []
-                for item_n in bruto_noticias:
-                    termo_busca = f"{item_n.get('titulo', '')} {item_n.get('fonte', '')}"
-                    link_google = f"https://www.google.com/search?q={urllib.parse.quote_plus(termo_busca)}"
-                    item_n['url'] = link_google
-                    st.session_state.noticias_descobertas.append(item_n)
-                st.success(f"{len(bruto_noticias)} notícias recentes obtidas com sucesso!")
-            except Exception:
-                st.warning("Limite de cota do Gemini atingido. Carregando bloco dinâmico robusto com pílulas do dia e links diretos do Google!")
-                
-                pool_noticias = [
-                    {"categoria": "Juros e financiamento", "titulo": "Caixa aperta credito imobiliario e exige maior entrada no SBPE", "destaque": "CAIXA EXIGE MAIOR ENTRADA", "resumo": "Com restricao de liquidez na poupanca, Caixa reduz teto de financiamento e eleva valor da entrada para novos compradores.", "fonte": "Valor Economico"},
-                    {"categoria": "Valorizacao de bairros", "titulo": "Leblon lidera ranking do metro quadrado mais caro do pais", "destaque": "M² MAIS CARO DO BRASIL", "resumo": "Indice FipeZAP aponta o Leblon com valor medio superior a R$ 23 mil/m², consolidando a lideranca historica do bairro carioca.", "fonte": "FipeZAP"},
-                    {"categoria": "Mercado regional", "titulo": "Niteroi registra alta na procura por imoveis residenciais na Regiao Oceanica", "destaque": "BOOM NA REGIAO OCEANICA", "resumo": "Procurada por qualidade de vida e novos condominios, a regiao em Niteroi atrai familias e investidores em busca de valorizacao.", "fonte": "BeSmart Inteligencia"},
-                    {"categoria": "Lancamentos imobiliarios", "titulo": "Estudios e compactos ganham protagonismo nos lancamentos da Zona Sul", "destaque": "ALTA DEMANDA POR COMPACTOS", "resumo": "Investidores apostam em unidades compactas voltadas para locacao de curta temporada e jovens profissionais.", "fonte": "Ademi-RJ"},
-                    {"categoria": "Bancos e credito", "titulo": "Bancos privados ampliam competicao com taxas atrativas na portabilidade", "destaque": "PORTABILIDADE DE CREDITO", "resumo": "Estrategia de grandes bancos visa atrair clientes com financiamentos imobiliarios ativos em outras instituicoes.", "fonte": "Exame Imoveis"},
-                    {"categoria": "Economia", "titulo": "IPCA moderado traz alivio para o planejamento de investimentos imobiliarios", "destaque": "INFLACAO E IMOVEIS", "resumo": "Comportamento dos
+                bruto_noticias = json.loads
