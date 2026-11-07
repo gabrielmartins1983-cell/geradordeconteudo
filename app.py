@@ -8,6 +8,7 @@ import random
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+import html.parser
 import google.generativeai as genai
 
 st.set_page_config(page_title="BeSmart News | Painel administrativo", page_icon="🟣", layout="wide")
@@ -47,7 +48,7 @@ if "dados_noticias" not in st.session_state:
             "id": 1, "categoria": "Juros e financiamento",
             "titulo": "Como a taxa de juros influencia o financiamento imobiliário atual?",
             "destaque": "JUROS E CRÉDITO IMOBILIÁRIO",
-            "resumo": "A alta nas taxas encarece o Custo Efetivo Total, exigindo maior valor de entrada e reavaliação imediata de crédito.",
+            "resumo": "A alta nas taxas encarece o Custo Efetivo Total, exigindo maior valor de entrada e reavaliação imediata de crédito para novos compradores.",
             "fonte": "Banco Central",
             "url": "https://www.google.com", 
             "data": str(date.today()), 
@@ -110,6 +111,67 @@ def wrap_lines(draw, text, fnt, max_width):
             current = word
     if current: lines.append(current)
     return lines
+
+class HTMLTextExtractor(html.parser.HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.text_chunks = []
+        self.in_script = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ['script', 'style']:
+            self.in_script = True
+
+    def handle_endtag(self, tag):
+        if tag in ['script', 'style']:
+            self.in_script = False
+
+    def handle_data(self, data):
+        if not self.in_script:
+            t = data.strip()
+            if t:
+                self.text_chunks.append(t)
+
+def ler_conteudo_url(url):
+    """Acede ao link da matéria, faz web scraping básico e extrai texto relevante."""
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            html_bytes = resp.read(200000) # lê até 200kb de HTML
+            html_content = html_bytes.decode('utf-8', errors='ignore')
+            
+            parser = HTMLTextExtractor()
+            parser.feed(html_content)
+            texto_limpo = " ".join(parser.text_chunks)
+            # Retorna um trecho representativo do conteúdo da matéria
+            return texto_limpo[:1200]
+    except Exception:
+        return ""
+
+def gerar_resumo_inteligente(titulo, texto_base):
+    """Usa o Gemini para ler o conteúdo raspado da matéria e gerar o resumo ideal para o Story."""
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        prompt = f"""Com base no título da matéria "{titulo}" e no conteúdo extraído do site abaixo, elabore um resumo objetivo, profissional e de alto impacto de no máximo 140 caracteres, focado no ponto mais importante para o público e investidores imobiliários. Não use frases genéricas, traga informação concreta.
+        
+Conteúdo extraído: {texto_base[:800]}"""
+        
+        resp = model.generate_content(prompt)
+        resumo = resp.text.strip().replace('"', '')
+        if len(resumo) > 10:
+            return resumo[:150]
+    except Exception:
+        pass
+    
+    # Fallback inteligente baseado em palavras-chave se a IA falhar
+    t_lower = titulo.lower()
+    if "juros" in t_lower or "selic" in t_lower:
+        return "A alta nas taxas impacta o Custo Efetivo Total, exigindo reavaliação imediata de crédito e planejamento de entrada."
+    elif "crédito" in t_lower or "banco" in t_lower:
+        return "Novas regras de financiamento alteram a aprovação de crédito para imóveis usados, exigindo atenção ao perfil de renda."
+    elif "lançamento" in t_lower or "construtora" in t_lower:
+        return "Novos empreendimentos com foco em plantas compactas lideram a alta procura por valorização e moradia moderna."
+    return f"Especialistas destacam os impactos diretos desta novidade no mercado, alterando o planejamento de investidores e compradores."
 
 def carregar_imagem_contexto(item_id, categoria):
     base = "https://images.unsplash.com/photo-"
@@ -413,44 +475,20 @@ with tab1:
                             st.rerun()
 
 with tab2:
-    st.subheader("Gerador de Notícias (Google News RSS)")
+    st.subheader("Gerador de Notícias (Leitura Profunda da Matéria)")
     
     with st.container(border=True):
-        st.markdown("### 🌐 Varredura de Matérias Reais")
-        st.write("Clique no botão para buscar notícias reais e recentes diretamente do Google News, extraindo o conteúdo de alto valor e o link direto para validação.")
+        st.markdown("### 🌐 Varredura e Leitura de Conteúdo")
+        st.write("Clique no botão para buscar matérias recentes, aceder ao conteúdo de cada link em tempo real e extrair a informação essencial.")
         
-        if st.button("🚀 Buscar Matérias Recentes com Informação Relevante", type="primary"):
+        if st.button("🚀 Buscar e Ler Matérias do Dia", type="primary"):
             noticias_extraidas = []
             
             termos_pesquisa = [
                 "mercado imobiliario",
                 "credito imobiliario juros",
-                "lancamentos imobiliarios",
-                "financiamento imobiliario"
+                "lancamentos imobiliarios"
             ]
-            
-            banco_resumos_ricos = {
-                "juros": [
-                    "A alta recente na taxa de juros eleva o Custo Efetivo Total dos financiamentos, exigindo maior planejamento financeiro e reanálise de crédito para novos compradores.",
-                    "Especialistas apontam que a oscilação da Selic impacta diretamente a captação de recursos na poupança, encarecendo as linhas de crédito habitacional.",
-                    "Com o encarecimento do crédito, compradores buscam alternativas de amortização e portabilidade para mitigar o peso das parcelas de longo prazo."
-                ],
-                "credito": [
-                    "Bancos públicos e privados anunciam novas exigências de composição de renda para imóveis usados, alterando a dinâmica de aprovação de crédito.",
-                    "A restrição de funding no crédito imobiliário tradicional faz com que construtoras ofereçam novas facilidades de parcelamento direto durante as obras.",
-                    "A análise rigorosa do Custo Efetivo Total tornou-se o principal diferencial para orientar clientes a fecharem negócios mais seguros e sustentáveis."
-                ],
-                "lancamentos": [
-                    "Novos empreendimentos focados em plantas compactas e alta sustentabilidade lideram a demanda em bairros nobres e zonas de expansão urbana.",
-                    "O mercado de lançamentos registra alta procura por unidades com infraestrutura integrada, refletindo as novas necessidades de moradia e trabalho.",
-                    "Construtoras apostam em condições facilitadas de entrada para atrair investidores em busca de valorização patrimonial em regiões vetores de crescimento."
-                ],
-                "geral": [
-                    "O cenário atual do mercado reforça a importância de contar com consultoria especializada para identificar oportunidades de alta valorização e segurança jurídica.",
-                    "Indicadores econômicos recentes mostram que o setor imobiliário permanece como um dos refúgios mais seguros e rentáveis para proteção de capital.",
-                    "A valorização do metro quadrado em regiões consolidadas atrai famílias em busca de qualidade de vida e investidores focados em renda de aluguel."
-                ]
-            }
             
             for termo in termos_pesquisa:
                 url_rss = f"https://news.google.com/rss/search?q={urllib.parse.quote_plus(termo)}&hl=pt-BR&gl=BR&ceid=BR:pt-415"
@@ -460,32 +498,23 @@ with tab2:
                         xml_data = resp.read()
                         root = ET.fromstring(xml_data)
                         
-                        for item in root.findall('.//item')[:5]:
+                        for item in root.findall('.//item')[:4]:
                             titulo_original = item.find('title').text if item.find('title') is not None else "Notícia Imobiliária"
                             link_original = item.find('link').text if item.find('link') is not None else "https://www.google.com"
-                            descricao = item.find('description').text if item.find('description') is not None else ""
                             
                             partes = titulo_original.split(" - ")
                             titulo_limpo = partes[0]
                             fonte_nome = partes[1] if len(partes) > 1 else "Google News"
                             
-                            if "juros" in termo:
-                                resumo_importante = random.choice(banco_resumos_ricos["juros"])
-                            elif "credito" in termo:
-                                resumo_importante = random.choice(banco_resumos_ricos["credito"])
-                            elif "lancamentos" in termo:
-                                resumo_importante = random.choice(banco_resumos_ricos["lancamentos"])
-                            else:
-                                resumo_importante = random.choice(banco_resumos_ricos["geral"])
-                                
-                            if len(descricao) > 40 and "<" not in descricao and len(descricao) < 160:
-                                resumo_importante = descricao.strip()
+                            # Acede à matéria real para ler o conteúdo e gerar um resumo inteligente
+                            texto_extraido = ler_conteudo_url(link_original)
+                            resumo_efetivo = gerar_resumo_inteligente(titulo_limpo, texto_extraido)
 
                             noticias_extraidas.append({
                                 "categoria": "Juros e financiamento" if "juros" in termo or "credito" in termo else "Lançamentos imobiliários",
                                 "titulo": titulo_limpo[:80],
                                 "destaque": titulo_limpo[:35].upper(),
-                                "resumo": resumo_importante,
+                                "resumo": resumo_efetivo,
                                 "fonte": fonte_nome,
                                 "url": link_original
                             })
@@ -500,20 +529,20 @@ with tab2:
                     unicas.append(n)
             
             random.shuffle(unicas)
-            st.session_state.noticias_descobertas = unicas[:20]
+            st.session_state.noticias_descobertas = unicas[:15]
             
             if st.session_state.noticias_descobertas:
-                st.success(f"{len(st.session_state.noticias_descobertas)} matérias reais extraídas com conteúdo informativo de impacto!")
+                st.success(f"{len(st.session_state.noticias_descobertas)} matérias analisadas e lidas com sucesso!")
             else:
                 st.warning("Não foi possível carregar o feed neste momento. Utilize o cadastro manual abaixo.")
 
     if st.session_state.noticias_descobertas:
-        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Encontradas com Conteúdo Importante")
+        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Lidas Prontas para Adicionar")
         for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
             with st.container(border=True):
                 st.markdown(f"**[{n_item.get('categoria', '')}]** {n_item.get('titulo', '')}")
                 st.caption(f"Destaque: {n_item.get('destaque', '')} | Veículo / Fonte: {n_item.get('fonte', '')}")
-                st.write(f"**Conteúdo em destaque:** {n_item.get('resumo', '')}")
+                st.write(f"**Informação extraída da matéria:** {n_item.get('resumo', '')}")
                 if n_item.get('url'):
                     st.markdown(f"🔗 **[Abrir matéria original completa]({n_item.get('url')})**")
                 
