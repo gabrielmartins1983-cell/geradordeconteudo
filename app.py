@@ -43,25 +43,16 @@ if "dados_noticias" not in st.session_state:
     st.session_state.dados_noticias = [
         {
             "id": 1, "categoria": "Juros e financiamento",
-            "titulo": "Como a taxa de juros influencia o financiamento imobiliário?",
+            "titulo": "Como a taxa de juros influencia o financiamento imobiliário atual?",
             "destaque": "JUROS E CRÉDITO IMOBILIÁRIO",
-            "resumo": "As condições de crédito influenciam diretamente o valor das parcelas mensais, o Custo Efetivo Total (CET) e o planejamento estratégico de compra a longo prazo.",
-            "fonte": "Banco Central / ABRAINC",
-            "url": "https://www.bcb.gov.br", "data": str(date.today()), "regiao": "Brasil",
-            "status": "Rascunho", "verificado": True
-        },
-        {
-            "id": 2, "categoria": "Mercado regional",
-            "titulo": "O que observar antes de investir em um bairro em transformação?",
-            "destaque": "MERCADO IMOBILIÁRIO",
-            "resumo": "Infraestrutura urbana, novos modais de mobilidade, chegada de serviços e polos comerciais ajudam a entender a dinâmica de valorização de uma região.",
-            "fonte": "BeSmart Inteligência de Mercado",
-            "url": "https://www.google.com/search?q=investir+em+bairro+em+transformacao", "data": str(date.today()), "regiao": "Rio de Janeiro e Niterói",
+            "resumo": "As condições correntes de crédito impactam diretamente o Custo Efetivo Total (CET) e o planejamento estratégico dos compradores.",
+            "fonte": "Banco Central / Mercado",
+            "url": "https://www.google.com/search?q=financiamento+imobiliario+taxa+juros+hoje", "data": str(date.today()), "regiao": "Brasil",
             "status": "Rascunho", "verificado": True
         }
     ]
 if "proximo_id" not in st.session_state:
-    st.session_state.proximo_id = 3
+    st.session_state.proximo_id = 2
 
 if "story_ativo" not in st.session_state:
     st.session_state.story_ativo = None
@@ -71,6 +62,14 @@ if "historico_stories" not in st.session_state:
 
 if "noticias_descobertas" not in st.session_state:
     st.session_state.noticias_descobertas = []
+
+# Base de corretores e equipa disponíveis
+CORRETORES_EQUIPA = {
+    "Gabriel Martins": {"cargo": "Head Comercial BeSmart", "insta": "@gabrielmartins.corretor"},
+    "Equipe Comercial BeSmart": {"cargo": "Consultoria Imobiliária", "insta": "@besmartimoveis"},
+    "Ana Souza": {"cargo": "Corretora Associada", "insta": "@anasouza.besmart"},
+    "Carlos Eduardo": {"cargo": "Especialista em Lançamentos", "insta": "@carloseduardo.imoveis"}
+}
 
 def obter_fonte(size, bold=False):
     candidatos = [
@@ -170,7 +169,7 @@ def inserir_logotipo_inteligente(im, x, y, largura_desejada=420):
         fnt_logo = obter_fonte(32, True)
         d.text((x, y), "be.smart imóveis", font=fnt_logo, fill=WHITE)
 
-def make_story(item, nome_corretor, cargo_corretor, insta_corretor):
+def make_story(item, corretores_selecionados):
     W, H = 1080, 1920
     
     base_img = carregar_imagem_contexto(item.get("id", 1), item.get("categoria", ""))
@@ -213,30 +212,36 @@ def make_story(item, nome_corretor, cargo_corretor, insta_corretor):
     fnt_fonte = obter_fonte(28, True)
     d.text((margin, y), fonte_texto[:60], font=fnt_fonte, fill="#A49CB8")
 
-    card_corr_top = 1350
+    card_corr_top = 1320
     avatar_x = 220
-    avatar_y = card_corr_top + 75
-    avatar_r = 75
+    espacamento_bloco = 150 if len(corretores_selecionados) <= 2 else 120
     
-    d.ellipse((avatar_x - avatar_r, avatar_y - avatar_r, avatar_x + avatar_r, avatar_y + avatar_r), fill="#9966FF")
-    fnt_avatar = obter_fonte(48, True)
-    d.text((avatar_x - 30, avatar_y - 32), "GM", font=fnt_avatar, fill=WHITE)
+    for idx_corr, nome_corr in enumerate(corretores_selecionados[:3]):
+        info_corr = CORRETORES_EQUIPA.get(nome_corr, {"cargo": "Consultor Imobiliário", "insta": "@besmartimoveis"})
+        
+        avatar_y = card_corr_top + (idx_corr * espacamento_bloco) + 50
+        avatar_r = 55
+        
+        d.ellipse((avatar_x - avatar_r, avatar_y - avatar_r, avatar_x + avatar_r, avatar_y + avatar_r), fill="#9966FF")
+        fnt_avatar = obter_fonte(38, True)
+        iniciais = "".join([n[0] for n in nome_corr.split()[:2]]).upper()
+        d.text((avatar_x - 24, avatar_y - 25), iniciais, font=fnt_avatar, fill=WHITE)
 
-    text_left = avatar_x + avatar_r + 35
-    fnt_nome = obter_fonte(44, True)
-    fnt_cargo = obter_fonte(28, True)
-    fnt_insta = obter_fonte(26)
-    
-    d.text((text_left, card_corr_top + 15), nome_corretor[:22], font=fnt_nome, fill=WHITE)
-    d.text((text_left, card_corr_top + 72), cargo_corretor[:28], font=fnt_cargo, fill="#B99AE8")
-    d.text((text_left, card_corr_top + 110), insta_corretor[:30], font=fnt_insta, fill=MUTED)
+        text_left = avatar_x + avatar_r + 30
+        bloco_top = card_corr_top + (idx_corr * espacamento_bloco)
+        
+        fnt_nome = obter_fonte(38, True)
+        fnt_cargo = obter_fonte(24, True)
+        fnt_insta = obter_fonte(22)
+        
+        d.text((text_left, bloco_top), nome_corr[:26], font=fnt_nome, fill=WHITE)
+        d.text((text_left, bloco_top + 48), info_corr['cargo'][:32], font=fnt_cargo, fill="#B99AE8")
+        d.text((text_left, bloco_top + 80), info_corr['insta'][:34], font=fnt_insta, fill=MUTED)
 
-    footer_y = 1780
-    d.line((margin, footer_y - 30, W-margin, footer_y - 30), fill="#4A3B66", width=2)
-    fnt_foot1 = obter_fonte(28, True)
-    fnt_foot2 = obter_fonte(22)
-    d.text((margin, footer_y), f"Fale com a nossa equipe • {insta_corretor}", font=fnt_foot1, fill="#B99AE8")
-    d.text((margin, footer_y + 42), "informação que aproxima você do mercado imobiliário", font=fnt_foot2, fill=MUTED)
+    footer_y = 1800
+    d.line((margin, footer_y - 25, W-margin, footer_y - 25), fill="#4A3B66", width=2)
+    fnt_foot1 = obter_fonte(26, True)
+    d.text((margin, footer_y), "Fale com a nossa equipe de especialistas • Be.Smart Imóveis", font=fnt_foot1, fill="#B99AE8")
 
     out = BytesIO()
     im.save(out, format="PNG")
@@ -247,13 +252,19 @@ st.markdown('<div class="brand">be.smart <span>news</span></div><div class="smal
 st.write("")
 
 with st.sidebar:
-    st.markdown("### ⚙️ Configurações do Corretor")
-    st.info("Personalize os dados que aparecerão na arte e no rodapé dos seus Stories.")
-    nome_input = st.text_input("Seu Nome", value="Gabriel Martins")
-    cargo_input = st.text_input("Seu Cargo / Papel", value="Head Comercial BeSmart")
-    insta_input = st.text_input("Seu Instagram", value="@gabrielmartins.corretor")
+    st.markdown("### ⚙️ Configuração de Corretores")
+    st.info("Selecione os corretores ou responsáveis ativos para a equipa.")
+    
+    corretores_ativos = st.multiselect(
+        "Corretores / Equipa Ativa",
+        options=list(CORRETORES_EQUIPA.keys()),
+        default=["Gabriel Martins"]
+    )
+    
+    if not corretores_ativos:
+        corretores_ativos = ["Gabriel Martins"]
 
-st.info("Painel operacional ativo com links garantidos de validação e inteligência artificial.")
+st.info("Painel operacional ativo com captação de notícias do dia via IA e Fallback Google Search.")
 
 lista_atual = st.session_state.dados_noticias
 c1, c2, c3, c4 = st.columns(4)
@@ -262,7 +273,7 @@ c2.metric("Aguardando aprovação", sum(1 for i in lista_atual if isinstance(i, 
 c3.metric("Aprovados", sum(1 for i in lista_atual if isinstance(i, dict) and i.get("status") == "Aprovado"))
 c4.metric("Stories gerados", len(st.session_state.historico_stories))
 
-tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "➕ Novo conteúdo com IA", "📚 Histórico & Métricas"])
+tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "➕ Novo conteúdo do dia", "📚 Histórico & Métricas"])
 
 with tab1:
     col_t1, col_t2 = st.columns([3, 1])
@@ -297,7 +308,7 @@ with tab1:
     else:
         for idx_item, item in enumerate(shown):
             with st.container(border=True):
-                left, right = st.columns([4,1])
+                left, right = st.columns([3, 2])
                 with left:
                     st.markdown(f"**{item.get('destaque', '')}**")
                     st.markdown(f"### {item.get('titulo', '')}")
@@ -305,152 +316,144 @@ with tab1:
                     st.caption(f"{item.get('categoria', '')} • {item.get('regiao', '')} • {item.get('data', '')}")
                     st.caption(f"Fonte: {item.get('fonte', '')}")
                     if item.get("url"):
-                        st.markdown(f"🔗 [Validar notícia no Google]({item.get('url')})")
+                        st.markdown(f"🔗 [Acessar link da notícia / Google]({item.get('url')})")
                     else:
                         st.caption("Link da fonte ainda não informado.")
-                    st.caption(f"Status: {item.get('status', '')} | Fonte verificada: {'Sim' if item.get('verificado') else 'Não'}")
+                    st.caption(f"Status: {item.get('status', '')} | Verificado: {'Sim' if item.get('verificado') else 'Não'}")
+                
                 with right:
-                    if st.button("Gerar Story", key=f"story_{item.get('id')}_{idx_item}", use_container_width=True):
-                        img_bytes = make_story(item, nome_input, cargo_input, insta_input)
-                        filename_gerado = f"besmart_news_{item.get('id')}_{datetime.now().strftime('%H%M%S')}.png"
-                        
-                        st.session_state.story_ativo = {
-                            "bytes": img_bytes,
-                            "titulo": item.get('titulo', 'story'),
-                            "filename": filename_gerado
-                        }
-                        
-                        st.session_state.historico_stories.insert(0, {
-                            "titulo": item.get('titulo', ''),
-                            "destaque": item.get('destaque', ''),
-                            "categoria": item.get('categoria', ''),
-                            "data_geracao": datetime.now().strftime('%d/%m/%Y às %H:%M'),
-                            "bytes": img_bytes,
-                            "filename": filename_gerado
-                        })
-                        st.rerun()
-
-                    if item.get("status") != "Aprovado":
-                        if st.button("Aprovar", key=f"approve_{item.get('id')}_{idx_item}", use_container_width=True):
-                            item["status"] = "Aprovado"
+                    st.markdown("#### 👥 Assinatura no Story")
+                    corretores_story = st.multiselect(
+                        "Escolha o(s) corretor(es) para este Story",
+                        options=corretores_ativos,
+                        default=corretores_ativos[:1],
+                        key=f"corr_story_{item.get('id')}_{idx_item}"
+                    )
+                    
+                    if not corretores_story:
+                        corretores_story = [corretores_ativos[0]]
+                    
+                    col_b1, col_b2, col_b3 = st.columns(3)
+                    with col_b1:
+                        if st.button("Gerar Story", key=f"story_{item.get('id')}_{idx_item}", use_container_width=True):
+                            img_bytes = make_story(item, corretores_story)
+                            filename_gerado = f"besmart_news_{item.get('id')}_{datetime.now().strftime('%H%M%S')}.png"
+                            
+                            st.session_state.story_ativo = {
+                                "bytes": img_bytes,
+                                "titulo": item.get('titulo', 'story'),
+                                "filename": filename_gerado
+                            }
+                            
+                            st.session_state.historico_stories.insert(0, {
+                                "titulo": item.get('titulo', ''),
+                                "destaque": item.get('destaque', ''),
+                                "categoria": item.get('categoria', ''),
+                                "corretores": ", ".join(corretores_story),
+                                "data_geracao": datetime.now().strftime('%d/%m/%Y às %H:%M'),
+                                "bytes": img_bytes,
+                                "filename": filename_gerado
+                            })
                             st.rerun()
-                    else:
-                        st.success("Aprovado")
 
-                    if st.button("🗑️ Excluir", key=f"delete_{item.get('id')}_{idx_item}", use_container_width=True):
-                        st.session_state.dados_noticias = [x for x in st.session_state.dados_noticias if x.get('id') != item.get('id')]
-                        st.success("Conteúdo excluído com sucesso!")
-                        st.rerun()
+                    with col_b2:
+                        if item.get("status") != "Aprovado":
+                            if st.button("Aprovar", key=f"approve_{item.get('id')}_{idx_item}", use_container_width=True):
+                                item["status"] = "Aprovado"
+                                st.rerun()
+                        else:
+                            st.success("Aprovado")
+
+                    with col_b3:
+                        if st.button("🗑️ Excluir", key=f"delete_{item.get('id')}_{idx_item}", use_container_width=True):
+                            st.session_state.dados_noticias = [x for x in st.session_state.dados_noticias if x.get('id') != item.get('id')]
+                            st.success("Conteúdo excluído com sucesso!")
+                            st.rerun()
 
 with tab2:
-    st.subheader("Cadastrar com Inteligência Artificial")
+    st.subheader("Gerador de Notícias do Dia com Fallback Inteligente")
     
-    if "ai_titulo" not in st.session_state: st.session_state.ai_titulo = ""
-    if "ai_destaque" not in st.session_state: st.session_state.ai_destaque = ""
-    if "ai_resumo" not in st.session_state: st.session_state.ai_resumo = ""
-    if "ai_gancho" not in st.session_state: st.session_state.ai_gancho = ""
-    if "ai_fonte" not in st.session_state: st.session_state.ai_fonte = ""
-    if "ai_url" not in st.session_state: st.session_state.ai_url = ""
-
     with st.container(border=True):
-        st.markdown("### 🌐 Varredura Inteligente com Pesquisa Automática")
-        st.write("O Gemini trará entre **15 e 20 notícias recentes** e o painel gerará links de validação garantidos para cada uma.")
-        if st.button("🌐 Buscar notícias de hoje", type="primary"):
-            with st.spinner("A pesquisar notícias do mercado imobiliário..."):
+        st.markdown("### 🌐 Buscar Notícias do Dia")
+        st.write("Insira um termo para pesquisa. Se a API do Gemini atingir o limite (429), o painel ativará automaticamente a busca direta pelo Google Search.")
+        
+        termo_pesquisa = st.text_input("Tema de mercado de hoje:", value="mercado imobiliário e juros Brasil")
+        
+        if st.button("🔎 Buscar Notícias Atualizadas", type="primary"):
+            sucesso_busca = False
+            
+            # 1. Tenta buscar pelo Gemini
+            try:
+                model = genai.GenerativeModel('gemini-3.8-flash')
+                prompt_busca = f"""
+                Atue como o Diretor de Inteligência de Mercado da Be.Smart Imóveis no Rio de Janeiro. 
+                Com base no tema '{termo_pesquisa}', crie 3 pílulas de notícias recentes e atualizadas do dia sobre o mercado imobiliário.
+                Retorne estritamente um array JSON puro (sem markdown) contendo 3 objetos com as chaves:
+                - categoria (ex: Juros e financiamento, Mercado regional, Valorização de bairros)
+                - titulo (título objetivo)
+                - destaque (chamada curta em LETRAS MAIÚSCULAS para Story, máx 35 caracteres)
+                - resumo (resumo analítico em 1 ou 2 frases)
+                - fonte (veículo de referência)
+                """
+                resposta = model.generate_content(prompt_busca)
+                texto_limpo = resposta.text.replace("```json", "").replace("```", "").strip()
+                st.session_state.noticias_descobertas = json.loads(texto_limpo)
+                sucesso_busca = True
+                st.success("Notícias do dia obtidas com sucesso via Gemini!")
+            except Exception as e:
+                # 2. Fallback Automático via Google Search (se houver erro/cota esgotada)
+                st.warning("Limite de cota do Gemini atingido. Acionando busca integrada via Google Search...")
                 try:
-                    model = genai.GenerativeModel('gemini-3.8-flash')
-                    prompt_lote = """
-                    Você é o diretor de inteligência de mercado da Be.Smart Imóveis no Rio de Janeiro. 
-                    Gere uma lista rigorosa com exatamente 18 notícias recentes e altamente relevantes sobre o mercado imobiliário brasileiro, crédito imobiliário, juros, habitação, lançamentos e economia em formato de lista JSON pura.
-                    Cada item da lista deve conter obrigatoriamente as chaves:
-                    - categoria (escolha entre: Juros e financiamento, Bancos e crédito, Lançamentos imobiliários, Valorização de bairros, Mercado regional, Investimento imobiliário, Economia, Legislação, Infraestrutura, Conteúdo educativo)
-                    - titulo (título profissional claro, máximo 80 caracteres)
-                    - destaque (chamada comercial de impacto em LETRAS MAIÚSCULAS para Story, máximo 40 caracteres)
-                    - resumo (resumo objetivo de 1 ou 2 frases, máximo 150 caracteres)
-                    - gancho (pergunta ou gancho para engajamento)
-                    - fonte (nome do veículo ou órgão oficial, ex: Exame, Valor Econômico, Banco Central, ABRAINC, QuintoAndar, Agência Brasil)
-
-                    Retorne APENAS um array JSON válido contendo exatamente 18 objetos, sem markdown adicional.
-                    """
-                    resposta_lote = model.generate_content(prompt_lote)
-                    limpo_lote = resposta_lote.text.replace("```json", "").replace("```", "").strip()
-                    bruto_noticias = json.loads(limpo_lote)
-                    
-                    # Garante URL de pesquisa funcional garantida para evitar 404
-                    st.session_state.noticias_descobertas = []
-                    for item_n in bruto_noticias:
-                        termo_busca = f"{item_n.get('titulo', '')} {item_n.get('fonte', '')}"
-                        link_google = f"https://www.google.com/search?q={urllib.parse.quote_plus(termo_busca)}"
-                        item_n['url'] = link_google
-                        st.session_state.noticias_descobertas.append(item_n)
-
-                    st.success("Notícias obtidas com sucesso com links validados!")
-                except Exception as e:
-                    st.error(f"Erro ao buscar notícias em lote: {e}")
+                    url_busca_google = f"https://www.google.com/search?q={urllib.parse.quote_plus(termo_pesquisa + ' mercado imobiliario noticias hoje')}"
+                    st.session_state.noticias_descobertas = [
+                        {
+                            "categoria": "Mercado regional",
+                            "titulo": f"Atualidades de hoje sobre: {termo_pesquisa}",
+                            "destaque": "NOTÍCIA DE HOJE",
+                            "resumo": "Consulte as principais manchetes atualizadas e em tempo real sobre este tema diretamente nos portais especializados.",
+                            "fonte": "Google Search / Web",
+                            "url_custom": url_busca_google
+                        }
+                    ]
+                    sucesso_busca = True
+                    st.success("Busca integrada ativada com sucesso!")
+                except Exception as ex_google:
+                    st.error(f"Erro na busca: {ex_google}")
 
     if st.session_state.noticias_descobertas:
-        st.markdown("#### 📋 Notícias Encontradas Prontas para Adicionar")
+        st.markdown("#### 📋 Resultados Encontrados para Adicionar")
         for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
             with st.container(border=True):
                 st.markdown(f"**[{n_item.get('categoria', 'Mercado')}]** {n_item.get('titulo', '')}")
                 st.caption(f"Destaque: {n_item.get('destaque', '')} | Fonte: {n_item.get('fonte', '')}")
                 st.write(n_item.get('resumo', ''))
-                if n_item.get('url'):
-                    st.markdown(f"🔗 [Validar notícia no Google]({n_item.get('url')})")
-                if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
+                
+                if st.button(f"➕ Adicionar à biblioteca", key=f"add_descoberta_{idx_n}"):
+                    if "url_custom" in n_item:
+                        link_final = n_item["url_custom"]
+                    else:
+                        link_final = f"https://www.google.com/search?q={urllib.parse.quote_plus(n_item.get('titulo', '') + ' ' + n_item.get('fonte', ''))}"
+                    
                     st.session_state.dados_noticias.append({
                         "id": st.session_state.proximo_id,
                         "categoria": n_item.get('categoria', 'Mercado regional'),
                         "titulo": n_item.get('titulo', ''),
                         "destaque": n_item.get('destaque', ''),
                         "resumo": n_item.get('resumo', ''),
-                        "gancho": n_item.get('gancho', 'Consulte nossa equipe.'),
+                        "gancho": "Consulte nossa equipe especializada.",
                         "fonte": n_item.get('fonte', 'BeSmart Inteligência'),
-                        "url": n_item.get('url', 'https://www.google.com'),
+                        "url": link_final,
                         "data": str(date.today()),
                         "regiao": "Rio de Janeiro e Niterói",
                         "status": "Rascunho",
                         "verificado": True
                     })
                     st.session_state.proximo_id += 1
-                    st.success(f"Notícia adicionada com sucesso à biblioteca!")
+                    st.success("Notícia adicionada com sucesso à biblioteca!")
                     st.rerun()
 
     st.divider()
-    st.markdown("#### ✍️ Ou cadastre uma notícia específica manualmente/link:")
-
-    with st.expander("✨ Assistente Individual (Preencher com link/texto)", expanded=False):
-        input_texto_ia = st.text_area("Cole o link ou o texto da notícia:", placeholder="Ex.: https://exame.com/imoveis/...")
-        if st.button("✨ Preencher com Gemini", type="primary"):
-            if not input_texto_ia:
-                st.warning("Insira um link ou texto.")
-            else:
-                with st.spinner("A estruturar a pílula de mercado..."):
-                    try:
-                        model = genai.GenerativeModel('gemini-3.8-flash')
-                        prompt = f"""
-                        Analise o texto/link e retorne um objeto JSON puro com as chaves: categoria, titulo, destaque, resumo, gancho, fonte.
-                        Texto base: {input_texto_ia}
-                        """
-                        response = model.generate_content(prompt)
-                        texto_limpo = response.text.replace("```json", "").replace("```", "").strip()
-                        dados_ia = json.loads(texto_limpo)
-                        
-                        st.session_state.ai_titulo = dados_ia.get("titulo", "")
-                        st.session_state.ai_destaque = dados_ia.get("destaque", "")
-                        st.session_state.ai_resumo = dados_ia.get("resumo", "")
-                        st.session_state.ai_gancho = dados_ia.get("gancho", "")
-                        st.session_state.ai_fonte = dados_ia.get("fonte", "")
-                        
-                        if input_texto_ia.startswith("http"):
-                            st.session_state.ai_url = input_texto_ia
-                        else:
-                            st.session_state.ai_url = f"https://www.google.com/search?q={urllib.parse.quote_plus(dados_ia.get('titulo', ''))}"
-                            
-                        st.success("Preenchido com sucesso!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro: {e}")
+    st.markdown("#### ✍️ Cadastro Manual Direto (Sempre disponível):")
 
     with st.form("new_item", clear_on_submit=False):
         categoria = st.selectbox(
@@ -461,42 +464,37 @@ with tab2:
                 "Economia", "Legislação", "Infraestrutura", "Conteúdo educativo"
             ]
         )
-        titulo = st.text_input("Título interno", value=st.session_state.ai_titulo)
-        destaque = st.text_input("Chamada principal da arte", value=st.session_state.ai_destaque)
-        resumo = st.text_area("Resumo curto", value=st.session_state.ai_resumo)
-        gancho = st.text_input("Pergunta ou chamada", value=st.session_state.ai_gancho)
+        titulo = st.text_input("Título da notícia de hoje", placeholder="Ex.: Nova taxa Selic definida pelo Copom")
+        destaque = st.text_input("Chamada principal da arte (MAIÚSCULAS)", placeholder="Ex.: DECISÃO DA TAXA SELIC")
+        resumo = st.text_area("Resumo curto da pílula", placeholder="Resuma o impacto da notícia...")
+        gancho = st.text_input("Chamada para engajamento", value="Fale com a nossa equipe.")
         regiao = st.selectbox("Abrangência", ["Brasil", "Rio de Janeiro", "Niterói", "Rio de Janeiro e Niterói", "Outro"])
-        fonte = st.text_input("Nome da fonte", value=st.session_state.ai_fonte)
-        url = st.text_input("Link da fonte original", value=st.session_state.ai_url)
+        fonte = st.text_input("Nome da fonte", placeholder="Ex.: Valor Econômico")
+        url = st.text_input("Link da matéria original (opcional)", placeholder="https://...")
         verificado = st.checkbox("Conferi a informação", value=True)
-        submitted = st.form_submit_button("Salvar conteúdo na biblioteca", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("Salvar notícia na biblioteca", type="primary", use_container_width=True)
         
         id_atual = st.session_state.proximo_id
         if submitted:
             if not titulo or not destaque or not resumo or not fonte:
                 st.error("Preencha os campos obrigatórios.")
             else:
+                link_final = url if url.startswith("http") else f"https://www.google.com/search?q={urllib.parse.quote_plus(titulo + ' ' + fonte)}"
                 st.session_state.dados_noticias.append({
                     "id": id_atual, 
                     "categoria": categoria, 
                     "titulo": titulo,
                     "destaque": destaque, 
                     "resumo": resumo, 
-                    "gancho": gancho or "Converse com a equipe BeSmart.",
+                    "gancho": gancho,
                     "fonte": fonte, 
-                    "url": url or "https://www.google.com", 
+                    "url": link_final, 
                     "data": str(date.today()), 
                     "regiao": regiao,
                     "status": "Rascunho", 
                     "verificado": verificado
                 })
                 st.session_state.proximo_id += 1
-                st.session_state.ai_titulo = ""
-                st.session_state.ai_destaque = ""
-                st.session_state.ai_resumo = ""
-                st.session_state.ai_gancho = ""
-                st.session_state.ai_fonte = ""
-                st.session_state.ai_url = ""
                 st.success("Cadastrado com sucesso na biblioteca!")
                 st.rerun()
 
@@ -506,13 +504,13 @@ with tab3:
     total_gerados = len(st.session_state.historico_stories)
     col_m1, col_m2, col_m3 = st.columns(3)
     col_m1.metric("Total de Stories Produzidos", total_gerados)
-    col_m2.metric("Editor de Conteúdo", "Google Gemini IA")
+    col_m2.metric("Editor de Conteúdo", "Be.Smart Inteligência")
     col_m3.metric("Padrão Visual", "Be.Smart Imóveis")
     
     st.divider()
     
     if total_gerados == 0:
-        st.info("Ainda não gerou nenhum Story. Vá até à aba '📰 Conteúdos' ou '➕ Novo conteúdo com IA' para criar a sua primeira arte.")
+        st.info("Ainda não gerou nenhum Story. Vá até à aba '📰 Conteúdos' ou '➕ Novo conteúdo do dia' para criar a sua primeira arte.")
     else:
         st.markdown("#### 🕒 Registo de Artes Geradas")
         for idx, story_hist in enumerate(st.session_state.historico_stories):
@@ -521,7 +519,7 @@ with tab3:
                 with col_info:
                     st.markdown(f"**{story_hist['destaque']}**")
                     st.markdown(f"### {story_hist['titulo']}")
-                    st.caption(f"Categoria: {story_hist['categoria']} • Gerado em: {story_hist['data_geracao']}")
+                    st.caption(f"Categoria: {story_hist['categoria']} • Responsáveis: {story_hist.get('corretores', 'Gabriel Martins')} • Gerado em: {story_hist['data_geracao']}")
                     st.download_button(
                         "📥 Descarregar novamente",
                         data=story_hist['bytes'],
