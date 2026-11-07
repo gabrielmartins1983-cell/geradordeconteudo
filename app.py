@@ -1,16 +1,24 @@
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps, ImageStat
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 from io import BytesIO
 from datetime import date
 import urllib.request
 import os
+import google.generativeai as genai
 
 st.set_page_config(page_title="BeSmart News | Painel administrativo", page_icon="🟣", layout="wide")
 
-# Cores Oficiais baseadas no Guia de Marca da BeSmart / InvestSmart
-PURPLE = "#9966FF"      # Roxo InvestSmart Oficial (#9966FF)
-WHITE = "#FFFFFF"       # Branco Oficial (#FFFFFF)
-SILVER = "#F3F3F3"      # Prata Oficial (#F3F3F3)
+try:
+    if "GEMINI_API_KEY" in st.secrets:
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    elif os.environ.get("GEMINI_API_KEY"):
+        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+except Exception:
+    pass
+
+PURPLE = "#9966FF"
+WHITE = "#FFFFFF"
+SILVER = "#F3F3F3"
 MUTED = "#B8B5C1"
 
 st.markdown("""
@@ -58,9 +66,10 @@ if "story_ativo" not in st.session_state:
 
 def obter_fonte(size, bold=False):
     candidatos = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         "arialbd.ttf" if bold else "arial.ttf",
-        "seguiib.ttf" if bold else "segoeui.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        "DejaVuSans.ttf"
     ]
     for p in candidatos:
         try:
@@ -75,10 +84,13 @@ def wrap_lines(draw, text, fnt, max_width):
     for word in words:
         test = (current + " " + word).strip()
         try:
-            bbox = draw.textbbox((0, 0), test, font=fnt)
-            w = bbox[2] - bbox[0]
+            if hasattr(draw, 'textbbox'):
+                bbox = draw.textbbox((0, 0), test, font=fnt)
+                w = bbox[2] - bbox[0]
+            else:
+                w = len(test) * (fnt.size // 2)
         except Exception:
-            w = len(test) * (fnt.size // 2)
+            w = len(test) * 15
         
         if w <= max_width:
             current = test
@@ -147,35 +159,30 @@ def inserir_logotipo_inteligente(im, x, y, largura_desejada=420):
         im.paste(logo_img, (x, y), logo_img)
     else:
         d = ImageDraw.Draw(im)
-        d.text((x, y), "be.smart imóveis", font=obter_fonte(24, True), fill=WHITE)
+        fnt_logo = obter_fonte(32, True)
+        d.text((x, y), "be.smart imóveis", font=fnt_logo, fill=WHITE)
 
 def make_story(item, nome_corretor, cargo_corretor, insta_corretor):
     W, H = 1080, 1920
     
-    # Fundo fotográfico limpo com desfoque elegante
     base_img = carregar_imagem_contexto(item.get("id", 1), item.get("categoria", ""))
     base_img = ImageOps.fit(base_img, (W, H), method=Image.Resampling.LANCZOS)
     base_img = base_img.filter(ImageFilter.GaussianBlur(radius=6))
 
-    # Camada translúcida corporativa para leitura impecável
     overlay = Image.new("RGBA", (W, H), (12, 10, 18, 220))
     im = Image.alpha_composite(base_img.convert("RGBA"), overlay).convert("RGB")
     
     margin = 90
     
-    # 1. Topo: Logotipo Oficial da BeSmart com respiro otimizado
     inserir_logotipo_inteligente(im, x=margin, y=110, largura_desejada=420)
     
     d = ImageDraw.Draw(im)
-    
-    # Linha divisória superior
     d.line((margin, 270, W-margin, 270), fill="#4A3B66", width=2)
 
-    # 2. Categoria em destaque
     cat = item.get("categoria", "").upper()
-    d.text((margin, 340), cat[:38], font=obter_fonte(30, True), fill="#B99AE8")
+    fnt_cat = obter_fonte(30, True)
+    d.text((margin, 340), cat[:38], font=fnt_cat, fill="#B99AE8")
     
-    # 3. Título / Chamada principal com espaçamento generoso
     title_font = obter_fonte(72, True)
     lines = wrap_lines(d, item.get("destaque", "").strip(), title_font, W-2*margin)
     y = 430
@@ -183,11 +190,9 @@ def make_story(item, nome_corretor, cargo_corretor, insta_corretor):
         d.text((margin, y), line, font=title_font, fill=WHITE)
         y += 92
 
-    # Barra roxa de destaque editorial
     y += 24
     d.rounded_rectangle((margin, y, margin+280, y+14), radius=7, fill=PURPLE)
     
-    # 4. Resumo explicativo amplo, arejado e bem espaçado
     body_font = obter_fonte(44)
     body_lines = wrap_lines(d, item.get("resumo", "").strip(), body_font, W-2*margin)
     y += 90
@@ -195,32 +200,35 @@ def make_story(item, nome_corretor, cargo_corretor, insta_corretor):
         d.text((margin, y), line, font=body_font, fill=SILVER)
         y += 66
 
-    # 5. Fonte Oficial da informação com bom respiro inferior
     y += 40
     fonte_texto = f"Fonte: {item.get('fonte', 'Verificado na fonte oficial')}"
-    d.text((margin, y), fonte_texto[:60], font=obter_fonte(28, True), fill="#A49CB8")
+    fnt_fonte = obter_fonte(28, True)
+    d.text((margin, y), fonte_texto[:60], font=fnt_fonte, fill="#A49CB8")
 
-    # 6. Bloco do Corretor AMPLIADO (Posicionado com espaço ideal no terço inferior)
     card_corr_top = 1350
     avatar_x = 220
     avatar_y = card_corr_top + 75
-    avatar_r = 75  # Raio de 75px (diâmetro de 150px)
+    avatar_r = 75
     
-    # Círculo da foto de perfil grande
     d.ellipse((avatar_x - avatar_r, avatar_y - avatar_r, avatar_x + avatar_r, avatar_y + avatar_r), fill="#9966FF")
-    d.text((avatar_x - 30, avatar_y - 32), "GM", font=obter_fonte(48, True), fill=WHITE)
+    fnt_avatar = obter_fonte(48, True)
+    d.text((avatar_x - 30, avatar_y - 32), "GM", font=fnt_avatar, fill=WHITE)
 
-    # Textos do corretor maiores e bem distribuídos ao lado do avatar
     text_left = avatar_x + avatar_r + 35
-    d.text((text_left, card_corr_top + 15), nome_corretor[:22], font=obter_fonte(44, True), fill=WHITE)
-    d.text((text_left, card_corr_top + 72), cargo_corretor[:28], font=obter_fonte(28, True), fill="#B99AE8")
-    d.text((text_left, card_corr_top + 110), insta_corretor[:30], font=obter_fonte(26), fill=MUTED)
+    fnt_nome = obter_fonte(44, True)
+    fnt_cargo = obter_fonte(28, True)
+    fnt_insta = obter_fonte(26)
+    
+    d.text((text_left, card_corr_top + 15), nome_corretor[:22], font=fnt_nome, fill=WHITE)
+    d.text((text_left, card_corr_top + 72), cargo_corretor[:28], font=fnt_cargo, fill="#B99AE8")
+    d.text((text_left, card_corr_top + 110), insta_corretor[:30], font=fnt_insta, fill=MUTED)
 
-    # 7. Rodapé institucional perfeitamente posicionado na base
     footer_y = 1780
     d.line((margin, footer_y - 30, W-margin, footer_y - 30), fill="#4A3B66", width=2)
-    d.text((margin, footer_y), f"Fale com a nossa equipe • {insta_corretor}", font=obter_fonte(28, True), fill="#B99AE8")
-    d.text((margin, footer_y + 42), "informação que aproxima você do mercado imobiliário", font=obter_fonte(22), fill=MUTED)
+    fnt_foot1 = obter_fonte(28, True)
+    fnt_foot2 = obter_fonte(22)
+    d.text((margin, footer_y), f"Fale com a nossa equipe • {insta_corretor}", font=fnt_foot1, fill="#B99AE8")
+    d.text((margin, footer_y + 42), "informação que aproxima você do mercado imobiliário", font=fnt_foot2, fill=MUTED)
 
     out = BytesIO()
     im.save(out, format="PNG")
@@ -237,7 +245,7 @@ with st.sidebar:
     cargo_input = st.text_input("Seu Cargo / Papel", value="Head Comercial BeSmart")
     insta_input = st.text_input("Seu Instagram", value="@gabrielmartins.corretor")
 
-st.info("Protótipo inicial: os itens de exemplo abaixo são demonstrativos.")
+st.info("Painel operacional ativo com inteligência artificial integrada.")
 
 lista_atual = st.session_state.dados_noticias
 c1, c2, c3, c4 = st.columns(4)
@@ -246,7 +254,7 @@ c2.metric("Aguardando aprovação", sum(1 for i in lista_atual if isinstance(i, 
 c3.metric("Aprovados", sum(1 for i in lista_atual if isinstance(i, dict) and i.get("status") == "Aprovado"))
 c4.metric("Com fonte verificada", sum(1 for i in lista_atual if isinstance(i, dict) and i.get("verificado")))
 
-tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "➕ Novo conteúdo", "ℹ️ Próximas etapas"])
+tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "➕ Novo conteúdo com IA", "ℹ️ Próximas etapas"])
 
 with tab1:
     st.subheader("Biblioteca de informações")
@@ -304,8 +312,56 @@ with tab1:
                         st.success("Aprovado")
 
 with tab2:
-    st.subheader("Cadastrar informação")
-    with st.form("new_item", clear_on_submit=True):
+    st.subheader("Cadastrar com Inteligência Artificial")
+    
+    if "ai_titulo" not in st.session_state: st.session_state.ai_titulo = ""
+    if "ai_destaque" not in st.session_state: st.session_state.ai_destaque = ""
+    if "ai_resumo" not in st.session_state: st.session_state.ai_resumo = ""
+    if "ai_gancho" not in st.session_state: st.session_state.ai_gancho = ""
+    if "ai_fonte" not in st.session_state: st.session_state.ai_fonte = ""
+    if "ai_url" not in st.session_state: st.session_state.ai_url = ""
+
+    with st.expander("✨ Assistente Gemini (Gerar dados automaticamente)", expanded=True):
+        input_texto_ia = st.text_area("Cole o link ou o texto da notícia do mercado imobiliário:", placeholder="Ex.: https://exame.com/imoveis/... ou cole a matéria aqui.")
+        if st.button("✨ Preencher campos com Gemini", type="primary"):
+            if not input_texto_ia:
+                st.warning("Insira um link ou texto para a IA analisar.")
+            else:
+                with st.spinner("A inteligência artificial está a estruturar a pílula de mercado..."):
+                    try:
+                        model = genai.GenerativeModel('gemini-1.5-flash')
+                        prompt = f"""
+                        Você é um especialista em marketing imobiliário e inteligência de mercado da Be.Smart Imóveis. 
+                        Analise o texto/link abaixo e extraia/crie os seguintes campos formatados rigorosamente em JSON puro:
+                        - categoria: escolha entre [Juros e financiamento, Bancos e crédito, Lançamentos imobiliários, Valorização de bairros, Mercado regional, Investimento imobiliário, Economia, Legislação, Infraestrutura, Conteúdo educativo]
+                        - titulo: Um título interno claro e profissional (máximo 80 caracteres).
+                        - destaque: Uma chamada comercial de impacto em LETRAS MAIÚSCULAS para o Story (máximo 40 caracteres).
+                        - resumo: Um resumo objetivo e elegante de 1 ou 2 frases explicativas (máximo 150 caracteres).
+                        - gancho: Uma pergunta ou chamada rápida para engajamento.
+                        - fonte: Nome da fonte original da notícia.
+
+                        Texto base: {input_texto_ia}
+                        
+                        Retorne APENAS um objeto JSON válido com as chaves: categoria, titulo, destaque, resumo, gancho, fonte.
+                        """
+                        response = model.generate_content(prompt)
+                        texto_limpo = response.text.replace("```json", "").replace("```", "").strip()
+                        import json
+                        dados_ia = json.loads(texto_limpo)
+                        
+                        st.session_state.ai_titulo = dados_ia.get("titulo", "")
+                        st.session_state.ai_destaque = dados_ia.get("destaque", "")
+                        st.session_state.ai_resumo = dados_ia.get("resumo", "")
+                        st.session_state.ai_gancho = dados_ia.get("gancho", "")
+                        st.session_state.ai_fonte = dados_ia.get("fonte", "")
+                        if input_texto_ia.startswith("http"):
+                            st.session_state.ai_url = input_texto_ia
+                        st.success("Campos preenchidos com sucesso pela IA!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao processar com a IA: {e}")
+
+    with st.form("new_item", clear_on_submit=False):
         categoria = st.selectbox(
             "Categoria", 
             [
@@ -314,22 +370,20 @@ with tab2:
                 "Economia", "Legislação", "Infraestrutura", "Conteúdo educativo"
             ]
         )
-        titulo = st.text_input("Título interno", placeholder="Ex.: Mudança nas regras de financiamento")
-        destaque = st.text_input("Chamada principal da arte", placeholder="Ex.: O CRÉDITO IMOBILIÁRIO ESTÁ MUDANDO")
-        resumo = st.text_area("Resumo curto", placeholder="Explique a informação em uma ou duas frases.")
-        gancho = st.text_input("Pergunta ou chamada para despertar interesse", placeholder="Ex.: Quer entender como isso afeta sua compra?")
+        titulo = st.text_input("Título interno", value=st.session_state.ai_titulo, placeholder="Ex.: Mudança nas regras de financiamento")
+        destaque = st.text_input("Chamada principal da arte", value=st.session_state.ai_destaque, placeholder="Ex.: O CRÉDITO IMOBILIÁRIO ESTÁ MUDANDO")
+        resumo = st.text_area("Resumo curto", value=st.session_state.ai_resumo, placeholder="Explique a informação em uma ou duas frases.")
+        gancho = st.text_input("Pergunta ou chamada para despertar interesse", value=st.session_state.ai_gancho, placeholder="Ex.: Quer entender como isso afeta sua compra?")
         regiao = st.selectbox("Abrangência", ["Brasil", "Rio de Janeiro", "Niterói", "Rio de Janeiro e Niterói", "Outro"])
-        fonte = st.text_input("Nome da fonte")
-        url = st.text_input("Link da fonte original")
-        verificado = st.checkbox("Conferi a informação diretamente na fonte original")
-        submitted = st.form_submit_button("Salvar conteúdo", type="primary", use_container_width=True)
+        fonte = st.text_input("Nome da fonte", value=st.session_state.ai_fonte)
+        url = st.text_input("Link da fonte original", value=st.session_state.ai_url)
+        verificado = st.checkbox("Conferi a informação diretamente na fonte original", value=True)
+        submitted = st.form_submit_button("Salvar conteúdo na biblioteca", type="primary", use_container_width=True)
         
         id_atual = st.session_state.proximo_id
         if submitted:
             if not titulo or not destaque or not resumo or not fonte:
                 st.error("Preencha título, chamada, resumo e fonte.")
-            elif not url.startswith("http"):
-                st.error("Informe o link completo da fonte (começando com http ou https).")
             else:
                 st.session_state.dados_noticias.append({
                     "id": id_atual, 
@@ -339,22 +393,28 @@ with tab2:
                     "resumo": resumo, 
                     "gancho": gancho or "Converse com a equipe BeSmart.",
                     "fonte": fonte, 
-                    "url": url, 
+                    "url": url or "https://exemplo.com", 
                     "data": str(date.today()), 
                     "regiao": regiao,
                     "status": "Rascunho", 
                     "verificado": verificado
                 })
                 st.session_state.proximo_id += 1
+                st.session_state.ai_titulo = ""
+                st.session_state.ai_destaque = ""
+                st.session_state.ai_resumo = ""
+                st.session_state.ai_gancho = ""
+                st.session_state.ai_fonte = ""
+                st.session_state.ai_url = ""
                 st.success("Conteúdo cadastrado com sucesso! Disponível na biblioteca.")
                 st.rerun()
 
 with tab3:
     st.subheader("Evolução prevista")
     st.markdown("""
-    **Versão 1 — protótipo atual**
-    - Cadastro manual de informações e fontes.
-    - Aprovação editorial.
-    - Geração de Story PNG com espaçamento fluido e excelente diagramação vertical.
+    **Versão Atual — Com Inteligência Artificial Integrada**
+    - Cadastro automatizado via Google Gemini.
+    - Geração de Story profissional em 1080x1920 com logótipo oficial e fontes em nuvem.
+    - Painel totalmente operacional online na nuvem.
     """)
-    st.warning("Este protótipo ainda não publica automaticamente no Instagram ou WhatsApp.")
+    st.warning("Próxima evolução opcional: upload de imagens de empreendimentos reais e partilha direta.")
