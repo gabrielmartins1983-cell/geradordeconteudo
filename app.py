@@ -412,31 +412,38 @@ with tab2:
         if st.button("🚀 Buscar Notícias do Dia", type="primary"):
             qtd = random.randint(15, 20)
             try:
-                model = genai.GenerativeModel('gemini-3.8-flash')
-                prompt_lote = f"""Gere um array JSON válido com exatamente {qtd} objetos contendo:
-                categoria (Juros e financiamento, Bancos e crédito, etc), titulo (max 80 carac), 
-                destaque (MAIÚSCULAS max 40), resumo (max 150), fonte. APENAS o JSON."""
+                model = genai.GenerativeModel('gemini-2.5-flash')
+                prompt_lote = f"""Gere um array JSON válido com exatamente {qtd} objetos contendo as chaves:
+                categoria (escolha entre: Juros e financiamento, Bancos e crédito, Lançamentos imobiliários, Valorização de bairros, Mercado regional, Investimento imobiliário, Economia, Legislação, Infraestrutura, Conteúdo educativo), 
+                titulo (max 80 caracteres), 
+                destaque (MAIÚSCULAS max 40 caracteres), 
+                resumo (max 150 caracteres), 
+                fonte (nome do veículo). 
+                Retorne APENAS o array JSON puro, sem blocos de markdown."""
                 
                 resp = model.generate_content(prompt_lote)
                 limpo = resp.text.replace("```json", "").replace("```", "").strip()
                 bruto = json.loads(limpo)
                 
                 st.session_state.noticias_descobertas = bruto
-                st.success(f"{len(bruto)} notícias geradas!")
+                st.success(f"{len(bruto)} notícias geradas com sucesso!")
             except Exception as e:
-                st.error("Erro ao gerar notícias com IA.")
+                st.error(f"Erro ao gerar notícias com IA: {e}")
 
     if st.session_state.noticias_descobertas:
+        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Notícias Encontradas Prontas para Adicionar")
         for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
             with st.container(border=True):
                 st.markdown(f"**[{n_item.get('categoria', '')}]** {n_item.get('titulo', '')}")
-                if st.button(f"➕ Adicionar", key=f"add_{idx_n}"):
+                st.caption(f"Destaque: {n_item.get('destaque', '')} | Fonte: {n_item.get('fonte', '')}")
+                st.write(n_item.get('resumo', ''))
+                if st.button(f"➕ Adicionar à biblioteca", key=f"add_{idx_n}"):
                     n_item["id"] = st.session_state.proximo_id
                     n_item["status"] = "Rascunho"
                     n_item["data"] = str(date.today())
                     st.session_state.dados_noticias.append(n_item)
                     st.session_state.proximo_id += 1
-                    st.success("Adicionado!")
+                    st.success("Adicionado à biblioteca!")
                     st.rerun()
 
     st.divider()
