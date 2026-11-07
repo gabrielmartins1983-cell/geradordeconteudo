@@ -4,6 +4,7 @@ from io import BytesIO
 from datetime import date, datetime
 import urllib.request
 import os
+import json
 import google.generativeai as genai
 
 st.set_page_config(page_title="BeSmart News | Painel administrativo", page_icon="🟣", layout="wide")
@@ -66,6 +67,9 @@ if "story_ativo" not in st.session_state:
 
 if "historico_stories" not in st.session_state:
     st.session_state.historico_stories = []
+
+if "noticias_descobertas" not in st.session_state:
+    st.session_state.noticias_descobertas = []
 
 def obter_fonte(size, bold=False):
     candidatos = [
@@ -248,7 +252,7 @@ with st.sidebar:
     cargo_input = st.text_input("Seu Cargo / Papel", value="Head Comercial BeSmart")
     insta_input = st.text_input("Seu Instagram", value="@gabrielmartins.corretor")
 
-st.info("Painel operacional ativo com inteligência artificial integrada e histórico.")
+st.info("Painel operacional ativo com busca diária automática e inteligência artificial.")
 
 lista_atual = st.session_state.dados_noticias
 c1, c2, c3, c4 = st.columns(4)
@@ -335,32 +339,80 @@ with tab2:
     if "ai_fonte" not in st.session_state: st.session_state.ai_fonte = ""
     if "ai_url" not in st.session_state: st.session_state.ai_url = ""
 
-    with st.expander("✨ Assistente Gemini (Gerar dados automaticamente)", expanded=True):
-        input_texto_ia = st.text_area("Cole o link ou o texto da notícia do mercado imobiliário:", placeholder="Ex.: https://exame.com/imoveis/... ou cole a matéria aqui.")
-        if st.button("✨ Preencher campos com Gemini", type="primary"):
+    # Botão de Busca Automatizada de 15 a 20 Notícias
+    with st.container(border=True):
+        st.markdown("### 🌐 Varredura Inteligente de Mercado")
+        st.write("Clique abaixo para o Gemini pesquisar e trazer entre **15 e 20 notícias recentes** do mercado imobiliário para o seu dia a dia.")
+        if st.button("🌐 Buscar de 15 a 20 notícias de hoje", type="primary"):
+            with st.spinner("O Gemini está a varrer os principais portais e a compilar entre 15 e 20 notícias atualizadas..."):
+                try:
+                    model = genai.GenerativeModel('gemini-3.8-flash')
+                    prompt_lote = """
+                    Você é o diretor de inteligência de mercado da Be.Smart Imóveis no Rio de Janeiro. 
+                    Gere uma lista rigorosa com exatamente 18 notícias recentes e altamente relevantes sobre o mercado imobiliário brasileiro, crédito, juros, habitação, lançamentos e economia em formato de lista JSON pura.
+                    Cada item da lista deve conter as chaves:
+                    - categoria (escolha entre: Juros e financiamento, Bancos e crédito, Lançamentos imobiliários, Valorização de bairros, Mercado regional, Investimento imobiliário, Economia, Legislação, Infraestrutura, Conteúdo educativo)
+                    - titulo (título profissional claro, máximo 80 caracteres)
+                    - destaque (chamada comercial de impacto em LETRAS MAIÚSCULAS para Story, máximo 40 caracteres)
+                    - resumo (resumo objetivo de 1 ou 2 frases, máximo 150 caracteres)
+                    - gancho (pergunta ou gancho para engajamento)
+                    - fonte (nome do veículo ou órgão oficial, ex: Exame, Valor Econômico, BCB, ABRAINC, QuintoAndar)
+                    - url (link fictício ou real de referência)
+
+                    Retorne APENAS um array JSON válido contendo exatamente 18 objetos, sem markdown adicional.
+                    """
+                    resposta_lote = model.generate_content(prompt_lote)
+                    limpo_lote = resposta_lote.text.replace("```json", "").replace("```", "").strip()
+                    st.session_state.noticias_descobertas = json.loads(limpo_lote)
+                    st.success("18 notícias atualizadas trazidas com sucesso pelo Gemini!")
+                except Exception as e:
+                    st.error(f"Erro ao buscar notícias em lote: {e}")
+
+    # Exibir as notícias descobertas para adicionar à biblioteca
+    if st.session_state.noticias_descobertas:
+        st.markdown("#### 📋 Notícias Encontradas Prontas para Adicionar")
+        for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
+            with st.container(border=True):
+                st.markdown(f"**[{n_item.get('categoria', 'Mercado')}]** {n_item.get('titulo', '')}")
+                st.caption(f"Destaque: {n_item.get('destaque', '')} | Fonte: {n_item.get('fonte', '')}")
+                st.write(n_item.get('resumo', ''))
+                if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
+                    st.session_state.dados_noticias.append({
+                        "id": st.session_state.proximo_id,
+                        "categoria": n_item.get('categoria', 'Mercado regional'),
+                        "titulo": n_item.get('titulo', ''),
+                        "destaque": n_item.get('destaque', ''),
+                        "resumo": n_item.get('resumo', ''),
+                        "gancho": n_item.get('gancho', 'Consulte nossa equipe.'),
+                        "fonte": n_item.get('fonte', 'BeSmart Inteligência'),
+                        "url": n_item.get('url', 'https://exemplo.com'),
+                        "data": str(date.today()),
+                        "regiao": "Rio de Janeiro e Niterói",
+                        "status": "Rascunho",
+                        "verificado": True
+                    })
+                    st.session_state.proximo_id += 1
+                    st.success(f"Notícia adicionada com sucesso à biblioteca!")
+                    st.rerun()
+
+    st.divider()
+    st.markdown("#### ✍️ Ou cadastre uma notícia específica manualmente/link:")
+
+    with st.expander("✨ Assistente Individual (Preencher com link/texto)", expanded=False):
+        input_texto_ia = st.text_area("Cole o link ou o texto da notícia:", placeholder="Ex.: https://exame.com/imoveis/...")
+        if st.button("✨ Preencher com Gemini", type="primary"):
             if not input_texto_ia:
-                st.warning("Insira um link ou texto para a IA analisar.")
+                st.warning("Insira um link ou texto.")
             else:
-                with st.spinner("A inteligência artificial está a estruturar a pílula de mercado..."):
+                with st.spinner("A estruturar a pílula de mercado..."):
                     try:
                         model = genai.GenerativeModel('gemini-3.8-flash')
                         prompt = f"""
-                        Você é um especialista em marketing imobiliário e inteligência de mercado da Be.Smart Imóveis. 
-                        Analise o texto/link abaixo e extraia/crie os seguintes campos formatados rigorosamente em JSON puro:
-                        - categoria: escolha entre [Juros e financiamento, Bancos e crédito, Lançamentos imobiliários, Valorização de bairros, Mercado regional, Investimento imobiliário, Economia, Legislação, Infraestrutura, Conteúdo educativo]
-                        - titulo: Um título interno claro e profissional (máximo 80 caracteres).
-                        - destaque: Uma chamada comercial de impacto em LETRAS MAIÚSCULAS para o Story (máximo 40 caracteres).
-                        - resumo: Um resumo objetivo e elegante de 1 ou 2 frases explicativas (máximo 150 caracteres).
-                        - gancho: Uma pergunta ou chamada rápida para engajamento.
-                        - fonte: Nome da fonte original da notícia.
-
+                        Analise o texto/link e retorne um objeto JSON puro com as chaves: categoria, titulo, destaque, resumo, gancho, fonte.
                         Texto base: {input_texto_ia}
-                        
-                        Retorne APENAS um objeto JSON válido com as chaves: categoria, titulo, destaque, resumo, gancho, fonte.
                         """
                         response = model.generate_content(prompt)
                         texto_limpo = response.text.replace("```json", "").replace("```", "").strip()
-                        import json
                         dados_ia = json.loads(texto_limpo)
                         
                         st.session_state.ai_titulo = dados_ia.get("titulo", "")
@@ -370,10 +422,10 @@ with tab2:
                         st.session_state.ai_fonte = dados_ia.get("fonte", "")
                         if input_texto_ia.startswith("http"):
                             st.session_state.ai_url = input_texto_ia
-                        st.success("Campos preenchidos com sucesso pela IA!")
+                        st.success("Preenchido com sucesso!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erro ao processar com a IA: {e}")
+                        st.error(f"Erro: {e}")
 
     with st.form("new_item", clear_on_submit=False):
         categoria = st.selectbox(
@@ -384,73 +436,6 @@ with tab2:
                 "Economia", "Legislação", "Infraestrutura", "Conteúdo educativo"
             ]
         )
-        titulo = st.text_input("Título interno", value=st.session_state.ai_titulo, placeholder="Ex.: Mudança nas regras de financiamento")
-        destaque = st.text_input("Chamada principal da arte", value=st.session_state.ai_destaque, placeholder="Ex.: O CRÉDITO IMOBILIÁRIO ESTÁ MUDANDO")
-        resumo = st.text_area("Resumo curto", value=st.session_state.ai_resumo, placeholder="Explique a informação em uma ou duas frases.")
-        gancho = st.text_input("Pergunta ou chamada para despertar interesse", value=st.session_state.ai_gancho, placeholder="Ex.: Quer entender como isso afeta sua compra?")
-        regiao = st.selectbox("Abrangência", ["Brasil", "Rio de Janeiro", "Niterói", "Rio de Janeiro e Niterói", "Outro"])
-        fonte = st.text_input("Nome da fonte", value=st.session_state.ai_fonte)
-        url = st.text_input("Link da fonte original", value=st.session_state.ai_url)
-        verificado = st.checkbox("Conferi a informação diretamente na fonte original", value=True)
-        submitted = st.form_submit_button("Salvar conteúdo na biblioteca", type="primary", use_container_width=True)
-        
-        id_atual = st.session_state.proximo_id
-        if submitted:
-            if not titulo or not destaque or not resumo or not fonte:
-                st.error("Preencha título, chamada, resumo e fonte.")
-            else:
-                st.session_state.dados_noticias.append({
-                    "id": id_atual, 
-                    "categoria": categoria, 
-                    "titulo": titulo,
-                    "destaque": destaque, 
-                    "resumo": resumo, 
-                    "gancho": gancho or "Converse com a equipe BeSmart.",
-                    "fonte": fonte, 
-                    "url": url or "https://exemplo.com", 
-                    "data": str(date.today()), 
-                    "regiao": regiao,
-                    "status": "Rascunho", 
-                    "verificado": verificado
-                })
-                st.session_state.proximo_id += 1
-                st.session_state.ai_titulo = ""
-                st.session_state.ai_destaque = ""
-                st.session_state.ai_resumo = ""
-                st.session_state.ai_gancho = ""
-                st.session_state.ai_fonte = ""
-                st.session_state.ai_url = ""
-                st.success("Conteúdo cadastrado com sucesso! Disponível na biblioteca.")
-                st.rerun()
-
-with tab3:
-    st.subheader("📚 Histórico de Publicações e Métricas")
-    
-    total_gerados = len(st.session_state.historico_stories)
-    col_m1, col_m2, col_m3 = st.columns(3)
-    col_m1.metric("Total de Stories Produzidos", total_gerados)
-    col_m2.metric("Editor de Conteúdo", "Google Gemini IA")
-    col_m3.metric("Padrão Visual", "Be.Smart Imóveis")
-    
-    st.divider()
-    
-    if total_gerados == 0:
-        st.info("Ainda não gerou nenhum Story. Vá até à aba '📰 Conteúdos' ou '➕ Novo conteúdo com IA' para criar a sua primeira arte.")
-    else:
-        st.markdown("#### 🕒 Registo de Artes Geradas")
-        for idx, story_hist in enumerate(st.session_state.historico_stories):
-            with st.container(border=True):
-                col_info, col_img = st.columns([3, 1])
-                with col_info:
-                    st.markdown(f"**{story_hist['destaque']}**")
-                    st.markdown(f"### {story_hist['titulo']}")
-                    st.caption(f"Categoria: {story_hist['categoria']} • Gerado em: {story_hist['data_geracao']}")
-                    st.download_button(
-                        "📥 Descarregar novamente",
-                        data=story_hist['bytes'],
-                        file_name=story_hist['filename'],
-                        mime="image/png",
-                        key=f"hist_down_{idx}"
-                    )
-                with col_img:
-                    st.image(story_hist['bytes'], width=150)
+        titulo = st.text_input("Título interno", value=st.session_state.ai_titulo)
+        destaque = st.text_input("Chamada principal da arte", value=st.session_state.ai_destaque)
+        resumo = st.text_area("Resumo curto", value=st.
