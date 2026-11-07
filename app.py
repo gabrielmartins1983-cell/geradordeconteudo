@@ -36,9 +36,9 @@ if "dados_noticias" not in st.session_state:
         {
             "id": 1, 
             "categoria": "Juros e financiamento",
-            "titulo": "Painel de Inteligência Imobiliária BeSmart - Inicie a varredura dinâmica",
+            "titulo": "Painel de Inteligência Imobiliária BeSmart - Inicie a varredura filtrada",
             "destaque": "PAINEL ADMINISTRATIVO",
-            "resumo": "Utilize a aba ao lado para executar a varredura na imprensa e capturar notícias recentes com links diretos.",
+            "resumo": "Utilize a aba ao lado para executar a varredura filtrada e capturar notícias estritamente do mercado imobiliário.",
             "fonte": "Sistema BeSmart",
             "url": "https://www.google.com", 
             "data": str(date.today()), 
@@ -318,7 +318,7 @@ c2.metric("Rascunhos", sum(1 for i in lista_atual if i.get("status") == "Rascunh
 c3.metric("Aprovados", sum(1 for i in lista_atual if i.get("status") == "Aprovado"))
 c4.metric("Stories gerados", len(st.session_state.historico_stories))
 
-tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "🔄 Varredura na Imprensa", "📚 Histórico & Métricas"])
+tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "🔄 Varredura Setorial Filtrada", "📚 Histórico & Métricas"])
 
 with tab1:
     col_t1, col_t2 = st.columns([3, 1])
@@ -406,23 +406,28 @@ with tab1:
                             st.rerun()
 
 with tab2:
-    st.subheader("Varredura Direta na Imprensa")
+    st.subheader("Varredura Setorial Filtrada (Mercado Imobiliário)")
     
     with st.container(border=True):
-        st.markdown("### 🌐 Coleta Aberta de Pautas")
-        st.write("Clique abaixo para buscar notícias recentes do mercado imobiliário e econômico diretamente de feeds abertos da imprensa.")
+        st.markdown("### 🌐 Coleta Inteligente com Filtro de Relevância")
+        st.write("Clique abaixo para buscar na imprensa apenas notícias que citem termos do setor imobiliário, habitação, juros ou construção civil.")
         
-        if st.button("🔄 Executar Varredura Dinâmica", type="primary"):
+        if st.button("🔄 Executar Varredura Imobiliária", type="primary"):
             noticias_extraidas = []
             
-            # Feeds alternativos diretos de economia e imobiliário em RSS público aberto
-            feeds_abertos = [
-                ("https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml", "Agência Brasil"),
-                ("https://news.google.com/rss/search?q=mercado+imobiliario+brasil&hl=pt-BR&gl=BR&ceid=BR:pt-415", "Google News (Imobiliário)"),
-                ("https://news.google.com/rss/search?q=financiamento+imobiliario+juros&hl=pt-BR&gl=BR&ceid=BR:pt-415", "Google News (Financiamento)")
+            # Feeds direcionados exclusivamente para busca imobiliária e de crédito
+            feeds_imobiliarios = [
+                ("https://news.google.com/rss/search?q=mercado+imobiliario+OR+imoveis+OR+financiamento+imobiliario+OR+fundos+imobiliarios+FII&hl=pt-BR&gl=BR&ceid=BR:pt-415", "Google News (Setor Imobiliário)")
             ]
             
-            for url_feed, nome_veiculo_padrao in feeds_abertos:
+            # Palavras-chave obrigatórias para garantir que a notícia é do setor
+            termos_obrigatorios = [
+                "imóvel", "imóveis", "imobiliário", "imobiliaria", "habitação", 
+                "habitacao", "financiamento", "aluguel", "aluguer", "construção", 
+                "construcao", "construtora", "fii", "fundos imobiliários", "terreno", "hipoteca"
+            ]
+            
+            for url_feed, nome_veiculo_padrao in feeds_imobiliarios:
                 try:
                     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
                     req = urllib.request.Request(url_feed, headers=headers)
@@ -433,23 +438,30 @@ with tab2:
                         for item in root.findall('.//item'):
                             link_node = item.find('link')
                             link_original = link_node.text if link_node is not None else ""
-                            if not link_original:
+                            if not link_original or 'google.com' in link_original:
                                 continue
                                 
-                            titulo_original = item.find('title').text if item.find('title') is not None else "Notícia do Setor"
+                            titulo_original = item.find('title').text if item.find('title') is not None else ""
                             descricao = item.find('description').text if item.find('description') is not None else ""
                             data_pub_str = item.find('pubDate').text if item.find('pubDate') is not None else str(date.today())
                             
+                            texto_completo = (titulo_original + " " + descricao).lower()
+                            
+                            # VALIDAÇÃO RIGOROSA: Apenas aceita se contiver ao menos uma palavra-chave do setor
+                            is_relevante = any(termo in texto_completo for termo in termos_obrigatorios)
+                            if not is_relevante:
+                                continue  # Descarta notícias irrelevantes (como ENEM, política geral, polícia, etc.)
+                            
                             partes = titulo_original.split(" - ")
                             titulo_limpo = partes[0]
-                            veiculo = partes[1] if len(partes) > 1 else nome_veiculo_padrao
+                            veiculo = partes[1] if len(partes) > 1 else "Imprensa Especializada"
                             
-                            resumo_real = f"Cobertura jornalística recente sobre tendências e o cenário do setor imobiliário e econômico."
+                            resumo_real = f"Análise recente da imprensa sobre o mercado imobiliário e tendências do setor."
                             if len(descricao) > 30 and "<" not in descricao:
                                 resumo_real = descricao.strip()
 
                             noticias_extraidas.append({
-                                "categoria": "Juros e financiamento" if "juros" in titulo_limpo.lower() or "financiamento" in titulo_limpo.lower() else "Lançamentos imobiliários",
+                                "categoria": "Lançamentos imobiliários" if "lancamento" in texto_completo or "construcao" in texto_completo else "Juros e financiamento",
                                 "titulo": titulo_limpo,
                                 "destaque": titulo_limpo.upper(),
                                 "resumo": resumo_real,
@@ -460,7 +472,6 @@ with tab2:
                 except Exception:
                     continue
             
-            # Remove duplicadas por URL
             vistos = set()
             unicas = []
             for n in noticias_extraidas:
@@ -468,15 +479,15 @@ with tab2:
                     vistos.add(n['url'])
                     unicas.append(n)
             
-            st.session_state.noticias_descobertas = unicas[:30]
+            st.session_state.noticias_descobertas = unicas[:25]
             
             if st.session_state.noticias_descobertas:
-                st.success(f"{len(st.session_state.noticias_descobertas)} matérias capturadas com sucesso em tempo real!")
+                st.success(f"{len(st.session_state.noticias_descobertas)} matérias estritamente imobiliárias capturadas com sucesso!")
             else:
-                st.warning("A rede externa limitou a consulta neste momento. Utilize o cadastro manual abaixo para registrar sua pauta instantaneamente.")
+                st.warning("Nenhuma matéria imobiliária recente encontrada neste ciclo. Utilize o cadastro manual abaixo para registrar sua pauta.")
 
     if st.session_state.noticias_descobertas:
-        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Capturadas")
+        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Filtradas")
         for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
             with st.container(border=True):
                 st.markdown(f"**[{n_item.get('categoria', '')}]** {n_item.get('titulo', '')}")
