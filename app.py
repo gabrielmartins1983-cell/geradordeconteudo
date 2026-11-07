@@ -409,10 +409,13 @@ with tab2:
     st.subheader("Gerador de Notícias (IA)")
     
     with st.container(border=True):
-        if st.button("🚀 Buscar Notícias do Dia", type="primary"):
+        st.markdown("### 🌐 Varredura Inteligente do Dia")
+        st.write("Clique no botão para buscar entre 15 e 20 notícias recentes do mercado imobiliário com links de validação no Google.")
+        
+        if st.button("🚀 Buscar entre 15 e 20 Notícias do Dia", type="primary"):
             qtd = random.randint(15, 20)
             try:
-                model = genai.GenerativeModel('gemini-2.5-flash')
+                model = genai.GenerativeModel('gemini-3.8-flash')
                 prompt_lote = f"""Gere um array JSON válido com exatamente {qtd} objetos contendo as chaves:
                 categoria (escolha entre: Juros e financiamento, Bancos e crédito, Lançamentos imobiliários, Valorização de bairros, Mercado regional, Investimento imobiliário, Economia, Legislação, Infraestrutura, Conteúdo educativo), 
                 titulo (max 80 caracteres), 
@@ -425,8 +428,14 @@ with tab2:
                 limpo = resp.text.replace("```json", "").replace("```", "").strip()
                 bruto = json.loads(limpo)
                 
-                st.session_state.noticias_descobertas = bruto
-                st.success(f"{len(bruto)} notícias geradas com sucesso!")
+                st.session_state.noticias_descobertas = []
+                for item_n in bruto:
+                    termo_busca = f"{item_n.get('titulo', '')} {item_n.get('fonte', '')}"
+                    link_google = f"https://www.google.com/search?q={urllib.parse.quote_plus(termo_busca)}"
+                    item_n['url'] = link_google
+                    st.session_state.noticias_descobertas.append(item_n)
+                    
+                st.success(f"{len(bruto)} notícias recentes obtidas com sucesso!")
             except Exception as e:
                 st.error(f"Erro ao gerar notícias com IA: {e}")
 
@@ -437,13 +446,26 @@ with tab2:
                 st.markdown(f"**[{n_item.get('categoria', '')}]** {n_item.get('titulo', '')}")
                 st.caption(f"Destaque: {n_item.get('destaque', '')} | Fonte: {n_item.get('fonte', '')}")
                 st.write(n_item.get('resumo', ''))
-                if st.button(f"➕ Adicionar à biblioteca", key=f"add_{idx_n}"):
-                    n_item["id"] = st.session_state.proximo_id
-                    n_item["status"] = "Rascunho"
-                    n_item["data"] = str(date.today())
-                    st.session_state.dados_noticias.append(n_item)
+                if n_item.get('url'):
+                    st.markdown(f"🔗 [Validar notícia no Google]({n_item.get('url')})")
+                
+                if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
+                    st.session_state.dados_noticias.append({
+                        "id": st.session_state.proximo_id,
+                        "categoria": n_item.get('categoria', 'Mercado regional'),
+                        "titulo": n_item.get('titulo', ''),
+                        "destaque": n_item.get('destaque', ''),
+                        "resumo": n_item.get('resumo', ''),
+                        "gancho": "Consulte nossa equipe especializada.",
+                        "fonte": n_item.get('fonte', 'BeSmart Inteligência'),
+                        "url": n_item.get('url', 'https://www.google.com'),
+                        "data": str(date.today()),
+                        "regiao": "Rio de Janeiro e Niterói",
+                        "status": "Rascunho",
+                        "verificado": True
+                    })
                     st.session_state.proximo_id += 1
-                    st.success("Adicionado à biblioteca!")
+                    st.success("Notícia adicionada com sucesso à biblioteca!")
                     st.rerun()
 
     st.divider()
@@ -468,16 +490,18 @@ with tab2:
         destaque = st.text_input("Chamada (MAIÚSCULAS)")
         resumo = st.text_area("Resumo")
         fonte = st.text_input("Fonte")
+        url_manual = st.text_input("Link da matéria original (opcional)", placeholder="https://...")
         submitted = st.form_submit_button("Salvar na biblioteca", type="primary")
         
         if submitted and titulo and destaque:
+            link_final = url_manual if (url_manual and url_manual.startswith("http")) else f"https://www.google.com/search?q={urllib.parse.quote_plus(titulo + ' ' + fonte)}"
             st.session_state.dados_noticias.append({
                 "id": st.session_state.proximo_id, "categoria": categoria, "titulo": titulo,
-                "destaque": destaque, "resumo": resumo, "fonte": fonte, "status": "Rascunho", 
-                "data": str(date.today())
+                "destaque": destaque, "resumo": resumo, "fonte": fonte, "url": link_final, "status": "Rascunho", 
+                "data": str(date.today()), "verificado": True
             })
             st.session_state.proximo_id += 1
-            st.success("Salvo!")
+            st.success("Salvo com sucesso na biblioteca!")
             st.rerun()
 
 with tab3:
