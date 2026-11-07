@@ -258,3 +258,200 @@ lista_atual = st.session_state.dados_noticias
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Conteúdos cadastrados", len(lista_atual))
 c2.metric("Aguardando aprovação", sum(1 for i in lista_atual if isinstance(i, dict) and i.get("status") == "Rascunho"))
+c3.metric("Aprovados", sum(1 for i in lista_atual if isinstance(i, dict) and i.get("status") == "Aprovado"))
+c4.metric("Stories gerados", len(st.session_state.historico_stories))
+
+tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "➕ Novo conteúdo com IA", "📚 Histórico & Métricas"])
+
+with tab1:
+    col_t1, col_t2 = st.columns([3, 1])
+    with col_t1:
+        st.subheader("Biblioteca de informações")
+    with col_t2:
+        if st.button("🗑️ Limpar toda a biblioteca", use_container_width=True):
+            st.session_state.dados_noticias = []
+            st.success("Biblioteca limpa com sucesso!")
+            st.rerun()
+    
+    if st.session_state.story_ativo is not None:
+        with st.container(border=True):
+            st.markdown("### 📱 Story Gerado com Sucesso")
+            st.image(st.session_state.story_ativo["bytes"], caption=f"Prévia • {st.session_state.story_ativo['titulo']}", width=320)
+            st.download_button(
+                "Baixar Imagem PNG (1080x1920)", 
+                data=st.session_state.story_ativo["bytes"], 
+                file_name=st.session_state.story_ativo["filename"], 
+                mime="image/png"
+            )
+            if st.button("Fechar prévia"):
+                st.session_state.story_ativo = None
+                st.rerun()
+        st.divider()
+
+    filt = st.selectbox("Filtrar por situação", ["Todos", "Rascunho", "Aprovado"])
+    shown = [i for i in lista_atual if isinstance(i, dict) and (filt == "Todos" or i.get("status") == filt)]
+    
+    if not shown:
+        st.info("Nenhum conteúdo encontrado na biblioteca.")
+    else:
+        for idx_item, item in enumerate(shown):
+            with st.container(border=True):
+                left, right = st.columns([4,1])
+                with left:
+                    st.markdown(f"**{item.get('destaque', '')}**")
+                    st.markdown(f"### {item.get('titulo', '')}")
+                    st.write(item.get("resumo", ""))
+                    st.caption(f"{item.get('categoria', '')} • {item.get('regiao', '')} • {item.get('data', '')}")
+                    st.caption(f"Fonte: {item.get('fonte', '')}")
+                    if item.get("url"):
+                        st.markdown(f"🔗 [Acessar matéria original completa]({item.get('url')})")
+                    else:
+                        st.caption("Link da fonte ainda não informado.")
+                    st.caption(f"Status: {item.get('status', '')} | Fonte verificada: {'Sim' if item.get('verificado') else 'Não'}")
+                with right:
+                    if st.button("Gerar Story", key=f"story_{item.get('id')}_{idx_item}", use_container_width=True):
+                        img_bytes = make_story(item, nome_input, cargo_input, insta_input)
+                        filename_gerado = f"besmart_news_{item.get('id')}_{datetime.now().strftime('%H%M%S')}.png"
+                        
+                        st.session_state.story_ativo = {
+                            "bytes": img_bytes,
+                            "titulo": item.get('titulo', 'story'),
+                            "filename": filename_gerado
+                        }
+                        
+                        st.session_state.historico_stories.insert(0, {
+                            "titulo": item.get('titulo', ''),
+                            "destaque": item.get('destaque', ''),
+                            "categoria": item.get('categoria', ''),
+                            "data_geracao": datetime.now().strftime('%d/%m/%Y às %H:%M'),
+                            "bytes": img_bytes,
+                            "filename": filename_gerado
+                        })
+                        st.rerun()
+
+                    if item.get("status") != "Aprovado":
+                        if st.button("Aprovar", key=f"approve_{item.get('id')}_{idx_item}", use_container_width=True):
+                            item["status"] = "Aprovado"
+                            st.rerun()
+                    else:
+                        st.success("Aprovado")
+
+                    if st.button("🗑️ Excluir", key=f"delete_{item.get('id')}_{idx_item}", use_container_width=True):
+                        st.session_state.dados_noticias = [x for x in st.session_state.dados_noticias if x.get('id') != item.get('id')]
+                        st.success("Conteúdo excluído com sucesso!")
+                        st.rerun()
+
+with tab2:
+    st.subheader("Cadastrar com Inteligência Artificial")
+    
+    if "ai_titulo" not in st.session_state: st.session_state.ai_titulo = ""
+    if "ai_destaque" not in st.session_state: st.session_state.ai_destaque = ""
+    if "ai_resumo" not in st.session_state: st.session_state.ai_resumo = ""
+    if "ai_gancho" not in st.session_state: st.session_state.ai_gancho = ""
+    if "ai_fonte" not in st.session_state: st.session_state.ai_fonte = ""
+    if "ai_url" not in st.session_state: st.session_state.ai_url = ""
+
+    with st.container(border=True):
+        st.markdown("### 🌐 Varredura Inteligente com Links Específicos das Matérias")
+        st.write("O Gemini trará entre **15 e 20 notícias recentes** com o **link direto da matéria completa** para validação.")
+        if st.button("🌐 Buscar notícias de hoje com links diretos", type="primary"):
+            with st.spinner("A pesquisar notícias e a associar os links diretos das matérias..."):
+                try:
+                    model = genai.GenerativeModel('gemini-3.8-flash')
+                    prompt_lote = """
+                    Você é o diretor de inteligência de mercado da Be.Smart Imóveis no Rio de Janeiro. 
+                    Gere uma lista rigorosa com exatamente 18 notícias recentes e altamente relevantes sobre o mercado imobiliário brasileiro, crédito imobiliário, juros, habitação, lançamentos e economia em formato de lista JSON pura.
+                    Cada item da lista deve conter obrigatoriamente as chaves:
+                    - categoria (escolha entre: Juros e financiamento, Bancos e crédito, Lançamentos imobiliários, Valorização de bairros, Mercado regional, Investimento imobiliário, Economia, Legislação, Infraestrutura, Conteúdo educativo)
+                    - titulo (título profissional claro, máximo 80 caracteres)
+                    - destaque (chamada comercial de impacto em LETRAS MAIÚSCULAS para Story, máximo 40 caracteres)
+                    - resumo (resumo objetivo de 1 ou 2 frases, máximo 150 caracteres)
+                    - gancho (pergunta ou gancho para engajamento)
+                    - fonte (nome do veículo ou órgão oficial, ex: Exame, Valor Econômico, Banco Central, ABRAINC, QuintoAndar, Agência Brasil)
+                    - url (O LINK DIRETO EXATO DA MATÉRIA OU URL ESPECÍFICA DE REFERÊNCIA DA NOTÍCIA, NUNCA apenas a home/domínio principal do site, ex: https://exame.com/imoveis/noticia-exemplo)
+
+                    Retorne APENAS um array JSON válido contendo exatamente 18 objetos, sem markdown adicional.
+                    """
+                    resposta_lote = model.generate_content(prompt_lote)
+                    limpo_lote = resposta_lote.text.replace("```json", "").replace("```", "").strip()
+                    st.session_state.noticias_descobertas = json.loads(limpo_lote)
+                    st.success("Notícias e links diretos obtidos com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao buscar notícias em lote: {e}")
+
+    if st.session_state.noticias_descobertas:
+        st.markdown("#### 📋 Notícias Encontradas Prontas para Adicionar")
+        for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
+            with st.container(border=True):
+                st.markdown(f"**[{n_item.get('categoria', 'Mercado')}]** {n_item.get('titulo', '')}")
+                st.caption(f"Destaque: {n_item.get('destaque', '')} | Fonte: {n_item.get('fonte', '')}")
+                st.write(n_item.get('resumo', ''))
+                if n_item.get('url'):
+                    st.markdown(f"🔗 [Ler matéria completa original]({n_item.get('url')})")
+                if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
+                    st.session_state.dados_noticias.append({
+                        "id": st.session_state.proximo_id,
+                        "categoria": n_item.get('categoria', 'Mercado regional'),
+                        "titulo": n_item.get('titulo', ''),
+                        "destaque": n_item.get('destaque', ''),
+                        "resumo": n_item.get('resumo', ''),
+                        "gancho": n_item.get('gancho', 'Consulte nossa equipe.'),
+                        "fonte": n_item.get('fonte', 'BeSmart Inteligência'),
+                        "url": n_item.get('url', 'https://exemplo.com'),
+                        "data": str(date.today()),
+                        "regiao": "Rio de Janeiro e Niterói",
+                        "status": "Rascunho",
+                        "verificado": True
+                    })
+                    st.session_state.proximo_id += 1
+                    st.success(f"Notícia adicionada com sucesso à biblioteca!")
+                    st.rerun()
+
+    st.divider()
+    st.markdown("#### ✍️ Ou cadastre uma notícia específica manualmente/link:")
+
+    with st.expander("✨ Assistente Individual (Preencher com link/texto)", expanded=False):
+        input_texto_ia = st.text_area("Cole o link ou o texto da notícia:", placeholder="Ex.: https://exame.com/imoveis/...")
+        if st.button("✨ Preencher com Gemini", type="primary"):
+            if not input_texto_ia:
+                st.warning("Insira um link ou texto.")
+            else:
+                with st.spinner("A estruturar a pílula de mercado..."):
+                    try:
+                        model = genai.GenerativeModel('gemini-3.8-flash')
+                        prompt = f"""
+                        Analise o texto/link e retorne um objeto JSON puro com as chaves: categoria, titulo, destaque, resumo, gancho, fonte, url.
+                        Se o texto base for um link, utilize-o diretamente na chave url.
+                        Texto base: {input_texto_ia}
+                        """
+                        response = model.generate_content(prompt)
+                        texto_limpo = response.text.replace("```json", "").replace("```", "").strip()
+                        dados_ia = json.loads(texto_limpo)
+                        
+                        st.session_state.ai_titulo = dados_ia.get("titulo", "")
+                        st.session_state.ai_destaque = dados_ia.get("destaque", "")
+                        st.session_state.ai_resumo = dados_ia.get("resumo", "")
+                        st.session_state.ai_gancho = dados_ia.get("gancho", "")
+                        st.session_state.ai_fonte = dados_ia.get("fonte", "")
+                        st.session_state.ai_url = dados_ia.get("url", input_texto_ia if input_texto_ia.startswith("http") else "https://exemplo.com")
+                        st.success("Preenchido com sucesso!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro: {e}")
+
+    with st.form("new_item", clear_on_submit=False):
+        categoria = st.selectbox(
+            "Categoria", 
+            [
+                "Juros e financiamento", "Bancos e crédito", "Lançamentos imobiliários",
+                "Valorização de bairros", "Mercado regional", "Investimento imobiliário",
+                "Economia", "Legislação", "Infraestrutura", "Conteúdo educativo"
+            ]
+        )
+        titulo = st.text_input("Título interno", value=st.session_state.ai_titulo)
+        destaque = st.text_input("Chamada principal da arte", value=st.session_state.ai_destaque)
+        resumo = st.text_area("Resumo curto", value=st.session_state.ai_resumo)
+        gancho = st.text_input("Pergunta ou chamada", value=st.session_state.ai_gancho)
+        regiao = st.selectbox("Abrangência", ["Brasil", "Rio de Janeiro", "Niterói", "Rio de Janeiro e Niterói", "Outro"])
+        fonte = st.text_input("Nome da fonte", value=st.session_state.ai_fonte)
+        url = st.text_input("Link da fonte original", value=st.session_state.ai_url)
