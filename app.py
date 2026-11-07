@@ -270,4 +270,161 @@ with st.sidebar:
         with st.form("form_novo_corretor"):
             novo_nome = st.text_input("Nome do Corretor")
             novo_cargo = st.text_input("Cargo", value="Corretor Associado")
-            novo_insta = st.text_input("Instagram", value="@besmartimoveis
+            novo_insta = st.text_input("Instagram", value="@besmartimoveis")
+            salvar_novo = st.form_submit_button("💾 Salvar Novo Corretor", use_container_width=True)
+            
+            if salvar_novo:
+                if novo_nome:
+                    st.session_state.corretores_equipa[novo_nome] = {"cargo": novo_cargo, "insta": novo_insta}
+                    st.success("Corretor gravado com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Insira o nome do corretor.")
+    else:
+        dados_atuais = st.session_state.corretores_equipa[selecao_edicao]
+        with st.form("form_edita_corretor"):
+            edit_nome = st.text_input("Nome do Corretor", value=selecao_edicao)
+            edit_cargo = st.text_input("Cargo", value=dados_atuais["cargo"])
+            edit_insta = st.text_input("Instagram", value=dados_atuais["insta"])
+            
+            col_e1, col_e2 = st.columns(2)
+            with col_e1:
+                salvar_edicao = st.form_submit_button("💾 Gravar", use_container_width=True)
+            with col_e2:
+                excluir_corr = st.form_submit_button("🗑️ Excluir", use_container_width=True)
+                
+            if salvar_edicao:
+                if edit_nome != selecao_edicao:
+                    del st.session_state.corretores_equipa[selecao_edicao]
+                st.session_state.corretores_equipa[edit_nome] = {"cargo": edit_cargo, "insta": edit_insta}
+                st.success("Alterações gravadas!")
+                st.rerun()
+                
+            if excluir_corr:
+                if len(st.session_state.corretores_equipa) > 1:
+                    del st.session_state.corretores_equipa[selecao_edicao]
+                    st.success("Corretor removido com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Deve manter pelo menos um corretor.")
+
+    st.divider()
+    st.markdown("### 🎯 Corretores nos Stories")
+    corretores_ativos = st.multiselect(
+        "Selecione quem aparecerá",
+        options=list(st.session_state.corretores_equipa.keys()),
+        default=list(st.session_state.corretores_equipa.keys())[:1]
+    )
+    
+    if not corretores_ativos:
+        corretores_ativos = [list(st.session_state.corretores_equipa.keys())[0]]
+
+lista_atual = st.session_state.dados_noticias
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Conteúdos", len(lista_atual))
+c2.metric("Rascunhos", sum(1 for i in lista_atual if i.get("status") == "Rascunho"))
+c3.metric("Aprovados", sum(1 for i in lista_atual if i.get("status") == "Aprovado"))
+c4.metric("Stories gerados", len(st.session_state.historico_stories))
+
+tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "➕ Novo conteúdo do dia", "📚 Histórico & Métricas"])
+
+with tab1:
+    col_t1, col_t2 = st.columns([3, 1])
+    with col_t1:
+        st.subheader("Biblioteca de informações")
+    with col_t2:
+        if st.button("🗑️ Limpar biblioteca", use_container_width=True):
+            st.session_state.dados_noticias = []
+            st.success("Limpa!")
+            st.rerun()
+    
+    if st.session_state.story_ativo is not None:
+        with st.container(border=True):
+            col_prev1, col_prev2 = st.columns([1, 3])
+            with col_prev1:
+                st.image(st.session_state.story_ativo["bytes"], width=180)
+            with col_prev2:
+                st.markdown("### 📱 Story Gerado com Sucesso")
+                st.write(f"**{st.session_state.story_ativo['titulo']}**")
+                st.download_button(
+                    "📥 Baixar PNG (1080x1920)", 
+                    data=st.session_state.story_ativo["bytes"], 
+                    file_name=st.session_state.story_ativo["filename"], 
+                    mime="image/png"
+                )
+                if st.button("✖️ Fechar prévia"):
+                    st.session_state.story_ativo = None
+                    st.rerun()
+        st.divider()
+
+    filt = st.selectbox("Filtrar", ["Todos", "Rascunho", "Aprovado"])
+    shown = [i for i in lista_atual if filt == "Todos" or i.get("status") == filt]
+    
+    if not shown:
+        st.info("Nenhum conteúdo encontrado.")
+    else:
+        for idx_item, item in enumerate(shown):
+            with st.container(border=True):
+                left, right = st.columns([3, 2])
+                with left:
+                    st.markdown(f"**{item.get('destaque', '')}**")
+                    st.markdown(f"### {item.get('titulo', '')}")
+                    st.write(item.get("resumo", ""))
+                    st.caption(f"{item.get('categoria', '')} • {item.get('data', '')}")
+                    if item.get("url"):
+                        st.markdown(f"🔗 [Acessar link original da matéria]({item.get('url')})")
+                
+                with right:
+                    corretores_story = st.multiselect(
+                        "Corretores para o Story:",
+                        options=corretores_ativos,
+                        default=corretores_ativos[:1],
+                        key=f"corr_{idx_item}"
+                    )
+                    if not corretores_story:
+                        corretores_story = [corretores_ativos[0]]
+                    
+                    col_b1, col_b2, col_b3 = st.columns(3)
+                    with col_b1:
+                        if st.button("Gerar Story", key=f"s_{idx_item}", use_container_width=True):
+                            img_bytes = make_story(item, corretores_story)
+                            fname = f"story_{datetime.now().strftime('%H%M%S')}.png"
+                            
+                            st.session_state.story_ativo = {
+                                "bytes": img_bytes, "titulo": item.get('titulo', ''), "filename": fname
+                            }
+                            st.session_state.historico_stories.insert(0, {
+                                "titulo": item.get('titulo', ''), "destaque": item.get('destaque', ''),
+                                "categoria": item.get('categoria', ''), "data_geracao": datetime.now().strftime('%d/%m/%Y'),
+                                "bytes": img_bytes, "filename": fname
+                            })
+                            st.rerun()
+
+                    with col_b2:
+                        if item.get("status") != "Aprovado":
+                            if st.button("Aprovar", key=f"a_{idx_item}", use_container_width=True):
+                                item["status"] = "Aprovado"
+                                st.rerun()
+                        else:
+                            st.success("Aprovado")
+
+                    with col_b3:
+                        if st.button("🗑️ Excluir", key=f"d_{idx_item}", use_container_width=True):
+                            st.session_state.dados_noticias.remove(item)
+                            st.rerun()
+
+with tab2:
+    st.subheader("Gerador de Notícias Inteligente (Gemini AI)")
+    
+    with st.container(border=True):
+        st.markdown("### 🌐 Varredura com Inteligência Artificial")
+        st.write("Clique no botão abaixo para gerar pautas recentes do mercado imobiliário brasileiro e carioca com resumos ricos e links diretos.")
+        
+        if st.button("🚀 Gerar Notícias Recentes com IA", type="primary"):
+            try:
+                model = genai.GenerativeModel('gemini-2.5-flash')
+                prompt = """Gere 6 notícias reais e atuais sobre o mercado imobiliário no Brasil (foco em financiamento, juros, lançamentos e economia).
+Retorne estritamente em formato JSON válido, contendo uma lista de objetos com as chaves:
+- categoria (escolha entre: "Juros e financiamento", "Bancos e crédito", "Lançamentos imobiliários", "Valorização de bairros", "Investimento imobiliário", "Economia")
+- titulo (título completo da notícia)
+- destaque
