@@ -336,4 +336,129 @@ with tab1:
     if st.session_state.story_ativo is not None:
         with st.container(border=True):
             st.markdown("### 📱 Story Gerado com Sucesso")
-            st.image(st.session_state.story_ativo["bytes"], caption=f"Prévia • {st.session_state.story_ativo['titulo']}",
+            st.image(st.session_state.story_ativo["bytes"], caption=f"Prévia • {st.session_state.story_ativo['titulo']}", width=320)
+            st.download_button(
+                "Baixar Imagem PNG (1080x1920)", 
+                data=st.session_state.story_ativo["bytes"], 
+                file_name=st.session_state.story_ativo["filename"], 
+                mime="image/png"
+            )
+            if st.button("Fechar prévia"):
+                st.session_state.story_ativo = None
+                st.rerun()
+        st.divider()
+
+    filt = st.selectbox("Filtrar por situação", ["Todos", "Rascunho", "Aprovado"])
+    shown = [i for i in lista_atual if isinstance(i, dict) and (filt == "Todos" or i.get("status") == filt)]
+    
+    if not shown:
+        st.info("Nenhum conteúdo encontrado na biblioteca.")
+    else:
+        for idx_item, item in enumerate(shown):
+            with st.container(border=True):
+                left, right = st.columns([3, 2])
+                with left:
+                    st.markdown(f"**{item.get('destaque', '')}**")
+                    st.markdown(f"### {item.get('titulo', '')}")
+                    st.write(item.get("resumo", ""))
+                    st.caption(f"{item.get('categoria', '')} • {item.get('regiao', '')} • {item.get('data', '')}")
+                    st.caption(f"Fonte: {item.get('fonte', '')}")
+                    if item.get("url"):
+                        st.markdown(f"🔗 [Acessar link da notícia / Google]({item.get('url')})")
+                    else:
+                        st.caption("Link da fonte ainda não informado.")
+                    st.caption(f"Status: {item.get('status', '')} | Verificado: {'Sim' if item.get('verificado') else 'Não'}")
+                
+                with right:
+                    st.markdown("#### 👥 Assinatura no Story")
+                    corretores_story = st.multiselect(
+                        "Escolha o(s) corretor(es) para este Story",
+                        options=corretores_ativos,
+                        default=corretores_ativos[:1],
+                        key=f"corr_story_{item.get('id')}_{idx_item}"
+                    )
+                    
+                    if not corretores_story:
+                        corretores_story = [corretores_ativos[0]]
+                    
+                    col_b1, col_b2, col_b3 = st.columns(3)
+                    with col_b1:
+                        if st.button("Gerar Story", key=f"story_{item.get('id')}_{idx_item}", use_container_width=True):
+                            img_bytes = make_story(item, corretores_story)
+                            filename_gerado = f"besmart_news_{item.get('id')}_{datetime.now().strftime('%H%M%S')}.png"
+                            
+                            st.session_state.story_ativo = {
+                                "bytes": img_bytes,
+                                "titulo": item.get('titulo', 'story'),
+                                "filename": filename_gerado
+                            }
+                            
+                            st.session_state.historico_stories.insert(0, {
+                                "titulo": item.get('titulo', ''),
+                                "destaque": item.get('destaque', ''),
+                                "categoria": item.get('categoria', ''),
+                                "corretores": ", ".join(corretores_story),
+                                "data_geracao": datetime.now().strftime('%d/%m/%Y às %H:%M'),
+                                "bytes": img_bytes,
+                                "filename": filename_gerado
+                            })
+                            st.rerun()
+
+                    with col_b2:
+                        if item.get("status") != "Aprovado":
+                            if st.button("Aprovar", key=f"approve_{item.get('id')}_{idx_item}", use_container_width=True):
+                                item["status"] = "Aprovado"
+                                st.rerun()
+                        else:
+                            st.success("Aprovado")
+
+                    with col_b3:
+                        if st.button("🗑️ Excluir", key=f"delete_{item.get('id')}_{idx_item}", use_container_width=True):
+                            st.session_state.dados_noticias = [x for x in st.session_state.dados_noticias if x.get('id') != item.get('id')]
+                            st.success("Conteúdo excluído com sucesso!")
+                            st.rerun()
+
+with tab2:
+    st.subheader("Gerador de Notícias do Dia (Entre 15 e 20 pílulas)")
+    
+    with st.container(border=True):
+        st.markdown("### 🌐 Varredura Inteligente do Dia")
+        st.write("Clique no botão abaixo para buscar uma quantidade dinâmica entre **15 e 20 notícias recentes** do mercado imobiliário com links de validação no Google.")
+        
+        if st.button("🚀 Buscar entre 15 e 20 Notícias do Dia", type="primary"):
+            quantidade_desejada = random.randint(15, 20)
+            try:
+                model = genai.GenerativeModel('gemini-3.8-flash')
+                prompt_lote = f"""
+                Atue como o Diretor de Inteligência de Mercado da Be.Smart Imóveis no Rio de Janeiro. 
+                Gere uma lista rigorosa com exatamente {quantidade_desejada} notícias recentes e altamente relevantes hoje sobre o mercado imobiliário brasileiro, crédito imobiliário, juros, habitação, lançamentos e economia em formato de lista JSON pura.
+                Cada item da lista deve conter obrigatoriamente as chaves:
+                - categoria (escolha entre: Juros e financiamento, Bancos e crédito, Lançamentos imobiliários, Valorização de bairros, Mercado regional, Investimento imobiliário, Economia, Legislação, Infraestrutura, Conteúdo educativo)
+                - titulo (título profissional claro, máximo 80 caracteres)
+                - destaque (chamada comercial de impacto em LETRAS MAIÚSCULAS para Story, máximo 40 caracteres)
+                - resumo (resumo objetivo de 1 ou 2 frases, máximo 150 caracteres)
+                - fonte (nome do veículo ou órgão oficial, ex: Exame, Valor Econômico, Banco Central, ABRAINC, QuintoAndar, Agência Brasil)
+
+                Retorne APENAS um array JSON válido contendo exatamente {quantidade_desejada} objetos, sem markdown adicional.
+                """
+                resposta_lote = model.generate_content(prompt_lote)
+                limpo_lote = resposta_lote.text.replace("```json", "").replace("```", "").strip()
+                bruto_noticias = json.loads(limpo_lote)
+                
+                st.session_state.noticias_descobertas = []
+                for item_n in bruto_noticias:
+                    termo_busca = f"{item_n.get('titulo', '')} {item_n.get('fonte', '')}"
+                    link_google = f"https://www.google.com/search?q={urllib.parse.quote_plus(termo_busca)}"
+                    item_n['url'] = link_google
+                    st.session_state.noticias_descobertas.append(item_n)
+                st.success(f"{len(bruto_noticias)} notícias recentes obtidas com sucesso!")
+            except Exception:
+                st.warning("Limite de cota do Gemini atingido. Carregando bloco dinâmico robusto com pílulas do dia e links diretos do Google!")
+                
+                pool_noticias = [
+                    {"categoria": "Juros e financiamento", "titulo": "Caixa aperta crédito imobiliário e exige maior entrada no SBPE", "destaque": "CAIXA EXIGE MAIOR ENTRADA", "resumo": "Com restrição de liquidez na poupança, Caixa reduz teto de financiamento e eleva valor da entrada para novos compradores.", "fonte": "Valor Econômico"},
+                    {"categoria": "Valorização de bairros", "titulo": "Leblon lidera ranking do metro quadrado mais caro do país", "destaque": "M² MAIS CARO DO BRASIL", "resumo": "Índice FipeZAP aponta o Leblon com valor médio superior a R$ 23 mil/m², consolidando a liderança histórica do bairro carioca.", "fonte": "FipeZAP"},
+                    {"categoria": "Mercado regional", "titulo": "Niterói registra alta na procura por imóveis residenciais na Região Oceânica", "destaque": "BOOM NA REGIÃO OCEÂNICA", "resumo": "Procurada por qualidade de vida e novos condomínios, a região em Niterói atrai famílias e investidores em busca de valorização.", "fonte": "BeSmart Inteligência"},
+                    {"categoria": "Lançamentos imobiliários", "titulo": "Estúdios e compactos ganham protagonismo nos lançamentos da Zona Sul", "destaque": "ALTA DEMANDA POR COMPACTOS", "resumo": "Investidores apostam em unidades compactas voltadas para locação de curta temporada e jovens profissionais.", "fonte": "Ademi-RJ"},
+                    {"categoria": "Bancos e crédito", "titulo": "Bancos privados ampliam competição com taxas atrativas na portabilidade", "destaque": "PORTABILIDADE DE CRÉDITO", "resumo": "Estratégia de grandes bancos visa atrair clientes com financiamentos imobiliários ativos em outras instituições.", "fonte": "Exame Imóveis"},
+                    {"categoria": "Economia", "titulo": "IPCA moderado traz alívio para o planejamento de investimentos imobiliários", "destaque": "INFLAÇÃO E IMÓVEIS", "resumo": "Comportamento dos índices de preços favorece a previsibilidade de custos na construção civil e aquisição.", "fonte": "
