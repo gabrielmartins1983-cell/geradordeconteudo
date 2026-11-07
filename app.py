@@ -6,6 +6,7 @@ import urllib.request
 import urllib.parse
 import os
 import json
+import random
 import google.generativeai as genai
 
 st.set_page_config(page_title="BeSmart News | Painel administrativo", page_icon="🟣", layout="wide")
@@ -63,7 +64,6 @@ if "historico_stories" not in st.session_state:
 if "noticias_descobertas" not in st.session_state:
     st.session_state.noticias_descobertas = []
 
-# Estado persistente da Equipe e Corretores na sessão
 if "corretores_equipa" not in st.session_state:
     st.session_state.corretores_equipa = {
         "Gabriel Martins": {"cargo": "Head Comercial BeSmart", "insta": "@gabrielmartins.corretor"},
@@ -312,7 +312,7 @@ with st.sidebar:
     if not corretores_ativos:
         corretores_ativos = [list(st.session_state.corretores_equipa.keys())[0]]
 
-st.info("Painel operacional ativo com captação de 18 notícias do dia e links diretos.")
+st.info("Painel operacional ativo com varredura flexível de 15 a 20 notícias e links diretos.")
 
 lista_atual = st.session_state.dados_noticias
 c1, c2, c3, c4 = st.columns(4)
@@ -389,202 +389,4 @@ with tab1:
                             
                             st.session_state.story_ativo = {
                                 "bytes": img_bytes,
-                                "titulo": item.get('titulo', 'story'),
-                                "filename": filename_gerado
-                            }
-                            
-                            st.session_state.historico_stories.insert(0, {
-                                "titulo": item.get('titulo', ''),
-                                "destaque": item.get('destaque', ''),
-                                "categoria": item.get('categoria', ''),
-                                "corretores": ", ".join(corretores_story),
-                                "data_geracao": datetime.now().strftime('%d/%m/%Y às %H:%M'),
-                                "bytes": img_bytes,
-                                "filename": filename_gerado
-                            })
-                            st.rerun()
-
-                    with col_b2:
-                        if item.get("status") != "Aprovado":
-                            if st.button("Aprovar", key=f"approve_{item.get('id')}_{idx_item}", use_container_width=True):
-                                item["status"] = "Aprovado"
-                                st.rerun()
-                        else:
-                            st.success("Aprovado")
-
-                    with col_b3:
-                        if st.button("🗑️ Excluir", key=f"delete_{item.get('id')}_{idx_item}", use_container_width=True):
-                            st.session_state.dados_noticias = [x for x in st.session_state.dados_noticias if x.get('id') != item.get('id')]
-                            st.success("Conteúdo excluído com sucesso!")
-                            st.rerun()
-
-with tab2:
-    st.subheader("Gerador de 18 Notícias do Dia com Links Diretos")
-    
-    with st.container(border=True):
-        st.markdown("### 🌐 Varredura Rápida de 18 Notícias do Dia")
-        st.write("Clique no botão abaixo para carregar instantaneamente um lote completo com 18 pílulas de mercado atualizadas sobre crédito, juros, bairros em valorização e lançamentos, cada uma com o seu link direto de busca e validação no Google.")
-        
-        if st.button("🚀 Buscar 18 Notícias Atualizadas do Dia", type="primary"):
-            # Tenta gerar com Gemini, se houver limite (429), carrega o lote robusto com links de pesquisa web garantidos
-            try:
-                model = genai.GenerativeModel('gemini-3.8-flash')
-                prompt_lote = """
-                Atue como o Diretor de Inteligência de Mercado da Be.Smart Imóveis no Rio de Janeiro. 
-                Gere uma lista rigorosa com exatamente 18 notícias recentes e altamente relevantes hoje sobre o mercado imobiliário brasileiro, crédito imobiliário, juros, habitação, lançamentos e economia em formato de lista JSON pura.
-                Cada item da lista deve conter obrigatoriamente as chaves:
-                - categoria (escolha entre: Juros e financiamento, Bancos e crédito, Lançamentos imobiliários, Valorização de bairros, Mercado regional, Investimento imobiliário, Economia, Legislação, Infraestrutura, Conteúdo educativo)
-                - titulo (título profissional claro, máximo 80 caracteres)
-                - destaque (chamada comercial de impacto em LETRAS MAIÚSCULAS para Story, máximo 40 caracteres)
-                - resumo (resumo objetivo de 1 ou 2 frases, máximo 150 caracteres)
-                - fonte (nome do veículo ou órgão oficial, ex: Exame, Valor Econômico, Banco Central, ABRAINC, QuintoAndar, Agência Brasil)
-
-                Retorne APENAS um array JSON válido contendo exatamente 18 objetos, sem markdown adicional.
-                """
-                resposta_lote = model.generate_content(prompt_lote)
-                limpo_lote = resposta_lote.text.replace("```json", "").replace("```", "").strip()
-                bruto_noticias = json.loads(limpo_lote)
-                
-                st.session_state.noticias_descobertas = []
-                for item_n in bruto_noticias:
-                    termo_busca = f"{item_n.get('titulo', '')} {item_n.get('fonte', '')}"
-                    link_google = f"https://www.google.com/search?q={urllib.parse.quote_plus(termo_busca)}"
-                    item_n['url'] = link_google
-                    st.session_state.noticias_descobertas.append(item_n)
-                st.success("18 notícias recentes obtidas com sucesso!")
-            except Exception:
-                st.warning("Limite de cota do Gemini atingido. Ativando varredura inteligente por blocos de notícias do dia com links diretos!")
-                lote_fallback = [
-                    {"categoria": "Juros e financiamento", "titulo": "Caixa aperta crédito imobiliário e exige maior entrada no SBPE", "destaque": "CAIXA EXIGE MAIOR ENTRADA", "resumo": "Com restrição de liquidez na poupança, Caixa reduz teto de financiamento e eleva valor da entrada para novos compradores.", "fonte": "Valor Econômico"},
-                    {"categoria": "Valorização de bairros", "titulo": "Leblon lidera ranking do metro quadrado mais caro do país", "destaque": "M² MAIS CARO DO BRASIL", "resumo": "Índice FipeZAP aponta o Leblon com valor médio superior a R$ 23 mil/m², consolidando a liderança histórica do bairro carioca.", "fonte": "FipeZAP"},
-                    {"categoria": "Mercado regional", "titulo": "Niterói registra alta na procura por imóveis residenciais na Região Oceânica", "destaque": "BOOM NA REGIÃO OCEÂNICA", "resumo": "Procurada por qualidade de vida e novos condomínios, a região em Niterói atrai famílias e investidores em busca de valorização.", "fonte": "BeSmart Inteligência"},
-                    {"categoria": "Lançamentos imobiliários", "titulo": "Estúdios e compactos ganham protagonismo nos lançamentos da Zona Sul", "destaque": "ALTA DEMANDA POR COMPACTOS", "resumo": "Investidores apostam em unidades compactas voltadas para locação de curta temporada e jovens profissionais.", "fonte": "Ademi-RJ"},
-                    {"categoria": "Bancos e crédito", "titulo": "Bancos privados ampliam competição com taxas atrativas na portabilidade", "destaque": "PORTABILIDADE DE CRÉDITO", "resumo": "Estratégia de grandes bancos visa atrair clientes com financiamentos imobiliários ativos em outras instituições.", "fonte": "Exame Imóveis"},
-                    {"categoria": "Economia", "titulo": "IPCA moderado traz alívio para o planejamento de investimentos imobiliários", "destaque": "INFLAÇÃO E IMÓVEIS", "resumo": "Comportamento dos índices de preços favorece a previsibilidade de custos na construção civil e aquisição.", "fonte": "IBGE"},
-                    {"categoria": "Investimento imobiliário", "titulo": "Fundos imobiliários (FIIs) de tijolo mostram recuperação nos rendimentos", "destaque": "RETORNO DOS FIIs DE TIJOLO", "resumo": "Logística e lajes corporativas premium lideram distribuição de dividendos aos cotistas no trimestre.", "fonte": "InfoMoney"},
-                    {"categoria": "Legislação", "titulo": "Novas regras de regularização fundiária agilizam repasses de escrituras", "destaque": "SEGURANÇA JURÍDICA", "resumo": "Processos digitalizados reduzem tempo de cartório e trazem agilidade para compra e venda de imóveis.", "fonte": "Conselho Nacional de Justiça"},
-                    {"categoria": "Infraestrutura", "titulo": "Expansão metroviária e novos corredores viários impulsionam novos eixos", "destaque": "MOBILIDADE E VALORIZAÇÃO", "resumo": "Chegada de modais de transporte de massa redesenha o mapa de atratividade para novos condomínios.", "fonte": "Prefeitura do Rio"},
-                    {"categoria": "Conteúdo educativo", "titulo": "Documentação essencial: o que verificar antes de assinar a promessa de compra", "destaque": "GUIA DO COMPRADOR SEGURO", "resumo": "Certidões negativas, matrícula atualizada e histórico do construtor evitam surpresas desagradáveis no pós-venda.", "fonte": "BeSmart Jurídico"},
-                    {"categoria": "Mercado regional", "titulo": "Barra da Tijuca atrai novos centros corporativos e complexos mistos", "destaque": "CRESCIMENTO NA BARRA", "resumo": "Modelo 'mixed-use' une residências, escritórios e conveniência no mesmo endereço, atraindo alto padrão.", "fonte": "OGlobo Imóveis"},
-                    {"categoria": "Juros e financiamento", "titulo": "FGTS Futuro: veja como usar o saldo para ampliar o poder de compra", "destaque": "OPORTUNIDADE COM O FGTS", "resumo": "Modalidade permite utilizar futuros depósitos do empregador para aprovação de crédito habitacional.", "fonte": "Caixa Econômica Federal"},
-                    {"categoria": "Valorização de bairros", "titulo": "Icaraí em Niterói mantém liquidez recorde no mercado de revenda", "destaque": "ICARAÍ EM ALTA", "resumo": "Bairro tradicional continua sendo o porto seguro de investidores devido à escassez de terrenos e alta procura.", "fonte": "Sensus Pesquisa"},
-                    {"categoria": "Lançamentos imobiliários", "titulo": "Sustentabilidade e certificações verdes valorizam novos edifícios", "destaque": "PRÉDIOS ECO-FRIENDLY", "resumo": "Painéis solares, reuso de água e eficiência energética tornam-se diferenciais decisivos na escolha do comprador.", "fonte": "Green Building Council"},
-                    {"categoria": "Bancos e crédito", "titulo": "Crédito com garantia de imóvel (Home Equity) cresce como alternativa", "destaque": "ALTERNATIVA DE CRÉDITO", "resumo": "Taxas menores e prazos longos tornam a linha atrativa para capital de giro e investimentos pessoais.", "fonte": "ABBC"},
-                    {"categoria": "Economia", "titulo": "Mercado de locação residencial acumula alta acima da inflação oficial", "destaque": "MERCADO DE ALUGUER", "resumo": "Demanda aquecida por locação pressiona preços para cima em capitais e regiões metropolitanas.", "fonte": "FipeZAP Aluguel"},
-                    {"categoria": "Investimento imobiliário", "titulo": "Aluguel por temporada na Região dos Lagos atrai investidores cariocas", "destaque": "RENTABILIDADE NA PRAIA", "resumo": "Retorno financeiro em curtas temporadas supera o modelo tradicional em cidades turísticas próximas ao Rio.", "fonte": "Airbnb Insights"},
-                    {"categoria": "Conteúdo educativo", "titulo": "Como calcular o Retorno sobre o Investimento (ROI) em imóveis", "destaque": "MATEMÁTICA DO INVESTIMENTO", "resumo": "Relação entre aluguel recebido, valorização patrimonial e custos de manutenção define a verdadeira rentabilidade.", "fonte": "BeSmart Educação"}
-                ]
-                st.session_state.noticias_descobertas = []
-                for item_n in lote_fallback:
-                    termo_busca = f"{item_n.get('titulo', '')} {item_n.get('fonte', '')}"
-                    link_google = f"https://www.google.com/search?q={urllib.parse.quote_plus(termo_busca)}"
-                    item_n['url'] = link_google
-                    st.session_state.noticias_descobertas.append(item_n)
-                st.success("18 notícias recentes obtidas com sucesso!")
-
-    if st.session_state.noticias_descobertas:
-        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Notícias Encontradas Prontas para Adicionar")
-        for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
-            with st.container(border=True):
-                st.markdown(f"**[{n_item.get('categoria', 'Mercado')}]** {n_item.get('titulo', '')}")
-                st.caption(f"Destaque: {n_item.get('destaque', '')} | Fonte: {n_item.get('fonte', '')}")
-                st.write(n_item.get('resumo', ''))
-                if n_item.get('url'):
-                    st.markdown(f"🔗 [Validar notícia no Google]({n_item.get('url')})")
-                
-                if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
-                    st.session_state.dados_noticias.append({
-                        "id": st.session_state.proximo_id,
-                        "categoria": n_item.get('categoria', 'Mercado regional'),
-                        "titulo": n_item.get('titulo', ''),
-                        "destaque": n_item.get('destaque', ''),
-                        "resumo": n_item.get('resumo', ''),
-                        "gancho": "Consulte nossa equipe especializada.",
-                        "fonte": n_item.get('fonte', 'BeSmart Inteligência'),
-                        "url": n_item.get('url', 'https://www.google.com'),
-                        "data": str(date.today()),
-                        "regiao": "Rio de Janeiro e Niterói",
-                        "status": "Rascunho",
-                        "verificado": True
-                    })
-                    st.session_state.proximo_id += 1
-                    st.success("Notícia adicionada com sucesso à biblioteca!")
-                    st.rerun()
-
-    st.divider()
-    st.markdown("#### ✍️ Cadastro Manual Direto:")
-
-    with st.form("new_item", clear_on_submit=False):
-        categoria = st.selectbox(
-            "Categoria", 
-            [
-                "Juros e financiamento", "Bancos e crédito", "Lançamentos imobiliários",
-                "Valorização de bairros", "Mercado regional", "Investimento imobiliário",
-                "Economia", "Legislação", "Infraestrutura", "Conteúdo educativo"
-            ]
-        )
-        titulo = st.text_input("Título da notícia de hoje", placeholder="Ex.: Nova taxa Selic definida pelo Copom")
-        destaque = st.text_input("Chamada principal da arte (MAIÚSCULAS)", placeholder="Ex.: DECISÃO DA TAXA SELIC")
-        resumo = st.text_area("Resumo curto da pílula", placeholder="Resuma o impacto da notícia...")
-        gancho = st.text_input("Chamada para engajamento", value="Fale com a nossa equipe.")
-        regiao = st.selectbox("Abrangência", ["Brasil", "Rio de Janeiro", "Niterói", "Rio de Janeiro e Niterói", "Outro"])
-        fonte = st.text_input("Nome da fonte", placeholder="Ex.: Valor Econômico")
-        url = st.text_input("Link da matéria original (opcional)", placeholder="https://...")
-        verificado = st.checkbox("Conferi a informação", value=True)
-        submitted = st.form_submit_button("Salvar notícia na biblioteca", type="primary", use_container_width=True)
-        
-        id_atual = st.session_state.proximo_id
-        if submitted:
-            if not titulo or not destaque or not resumo or not fonte:
-                st.error("Preencha os campos obrigatórios.")
-            else:
-                link_final = url if url.startswith("http") else f"https://www.google.com/search?q={urllib.parse.quote_plus(titulo + ' ' + fonte)}"
-                st.session_state.dados_noticias.append({
-                    "id": id_atual, 
-                    "categoria": categoria, 
-                    "titulo": titulo,
-                    "destaque": destaque, 
-                    "resumo": resumo, 
-                    "gancho": gancho,
-                    "fonte": fonte, 
-                    "url": link_final, 
-                    "data": str(date.today()), 
-                    "regiao": regiao,
-                    "status": "Rascunho", 
-                    "verificado": verificado
-                })
-                st.session_state.proximo_id += 1
-                st.success("Cadastrado com sucesso na biblioteca!")
-                st.rerun()
-
-with tab3:
-    st.subheader("📚 Histórico de Publicações e Métricas")
-    
-    total_gerados = len(st.session_state.historico_stories)
-    col_m1, col_m2, col_m3 = st.columns(3)
-    col_m1.metric("Total de Stories Produzidos", total_gerados)
-    col_m2.metric("Editor de Conteúdo", "Be.Smart Inteligência")
-    col_m3.metric("Padrão Visual", "Be.Smart Imóveis")
-    
-    st.divider()
-    
-    if total_gerados == 0:
-        st.info("Ainda não gerou nenhum Story. Vá até à aba '📰 Conteúdos' ou '➕ Novo conteúdo do dia' para criar a sua primeira arte.")
-    else:
-        st.markdown("#### 🕒 Registo de Artes Geradas")
-        for idx, story_hist in enumerate(st.session_state.historico_stories):
-            with st.container(border=True):
-                col_info, col_img = st.columns([3, 1])
-                with col_info:
-                    st.markdown(f"**{story_hist['destaque']}**")
-                    st.markdown(f"### {story_hist['titulo']}")
-                    st.caption(f"Categoria: {story_hist['categoria']} • Responsáveis: {story_hist.get('corretores', 'Gabriel Martins')} • Gerado em: {story_hist['data_geracao']}")
-                    st.download_button(
-                        "📥 Descarregar novamente",
-                        data=story_hist['bytes'],
-                        file_name=story_hist['filename'],
-                        mime="image/png",
-                        key=f"hist_down_{idx}"
-                    )
-                with col_img:
-                    st.image(story_hist['bytes'], width=150)
+                                "titulo": item.get('titulo', '
