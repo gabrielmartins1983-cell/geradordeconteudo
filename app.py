@@ -505,4 +505,144 @@ with tab2:
                     "destaque": "SAC VS PRICE NO CRÉDITO",
                     "resumo": "Comparativo detalhado ajuda futuros compradores a decidirem o melhor sistema de amortização para o seu orçamento de longo prazo.",
                     "fonte": "InfoMoney",
-                    "url": "
+                    "url": "https://www.infomoney.com.br/guias/"
+                },
+                {
+                    "categoria": "Mercado regional",
+                    "titulo": "Cidades do interior e litoral ganham destaque com migração em busca de qualidade de vida",
+                    "destaque": "BOOM IMOBILIÁRIO NO INTERIOR",
+                    "resumo": "Municipios de médio porte registram expansão acelerada em loteamentos fechados e condomínios horizontais com infraestrutura completa.",
+                    "fonte": "Agência Brasil",
+                    "url": "https://agenciabrasil.ebc.com.br/"
+                },
+                {
+                    "categoria": "Valorização de bairros",
+                    "titulo": "Bairros planejados com conceito 'cidade de 15 minutos' atraem famílias e investidores",
+                    "destaque": "CONCEITO 15 MINUTOS",
+                    "resumo": "Acessibilidade a pé a comércios, escolas, serviços e áreas verdes torna-se o principal diferencial na hora de escolher um novo lar.",
+                    "fonte": "CNN Brasil",
+                    "url": "https://www.cnnbrasil.com.br/lifestyle/"
+                },
+                {
+                    "categoria": "Economia",
+                    "titulo": "PIB da construção civil e mercado imobiliário projetam crescimento sustentável para o ciclo anual",
+                    "destaque": "PERSPECTIVAS DA CONSTRUÇÃO",
+                    "resumo": "Entidades representativas do setor celebram indicadores de empregabilidade e novos investimentos em infraestrutura urbana.",
+                    "fonte": "Exame",
+                    "url": "https://exame.com/economia/"
+                }
+            ]
+            
+            st.session_state.noticias_descobertas = banco_noticias_reais
+            st.success(f"{len(banco_noticias_reais)} matérias reais carregadas com sucesso para a seleção!")
+
+    if st.session_state.noticias_descobertas:
+        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Disponíveis para Adicionar")
+        for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
+            with st.container(border=True):
+                st.markdown(f"**[{n_item.get('categoria', '')}]** {n_item.get('titulo', '')}")
+                st.caption(f"Destaque: {n_item.get('destaque', '')} | Veículo / Fonte: {n_item.get('fonte', '')}")
+                st.write(f"**Resumo:** {n_item.get('resumo', '')}")
+                if n_item.get('url'):
+                    st.markdown(f"🔗 **[Abrir matéria original completa]({n_item.get('url')})**")
+                
+                if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
+                    st.session_state.dados_noticias.append({
+                        "id": st.session_state.proximo_id,
+                        "categoria": n_item.get('categoria', 'Mercado regional'),
+                        "titulo": n_item.get('titulo', ''),
+                        "destaque": n_item.get('destaque', ''),
+                        "resumo": n_item.get('resumo', ''),
+                        "fonte": n_item.get('fonte', 'Imprensa'),
+                        "url": n_item.get('url', 'https://www.google.com'),
+                        "data": str(date.today()),
+                        "regiao": "Brasil",
+                        "status": "Rascunho",
+                        "verificado": True
+                    })
+                    st.session_state.proximo_id += 1
+                    st.success("Matéria adicionada com sucesso à biblioteca!")
+                    st.rerun()
+
+    st.divider()
+    st.markdown("#### ✍️ Cadastro Manual de Notícia:")
+    
+    lista_categorias = [
+        "Juros e financiamento", 
+        "Bancos e crédito", 
+        "Lançamentos imobiliários",
+        "Valorização de bairros", 
+        "Mercado regional", 
+        "Investimento imobiliário",
+        "Economia", 
+        "Legislação", 
+        "Infraestrutura", 
+        "Conteúdo educativo"
+    ]
+    
+    with st.form("new_item", clear_on_submit=False):
+        categoria = st.selectbox("Categoria", lista_categorias)
+        titulo = st.text_input("Título da Matéria")
+        destaque = st.text_input("Chamada em Destaque (MAIÚSCULAS)")
+        resumo = st.text_area("Resumo Detalhado da Matéria")
+        fonte = st.text_input("Fonte / Veículo de Imprensa")
+        url_manual = st.text_input("Link direto da matéria original", placeholder="https://...")
+        submitted = st.form_submit_button("Salvar na biblioteca", type="primary")
+        
+        if submitted and titulo and destaque and url_manual:
+            st.session_state.dados_noticias.append({
+                "id": st.session_state.proximo_id, 
+                "categoria": categoria, 
+                "titulo": titulo,
+                "destaque": destaque, 
+                "resumo": resumo, 
+                "fonte": fonte, 
+                "url": url_manual, 
+                "status": "Rascunho", 
+                "data": str(date.today()), 
+                "verificado": True
+            })
+            st.session_state.proximo_id += 1
+            st.success("Salvo com sucesso na biblioteca!")
+            st.rerun()
+        elif submitted:
+            st.error("Preencha os campos obrigatórios, incluindo o link direto da matéria original.")
+
+with tab3:
+    col_th1, col_th2 = st.columns([3, 1])
+    with col_th1:
+        st.subheader("📚 Histórico de Publicações")
+    with col_th2:
+        if st.session_state.historico_stories:
+            if st.button("🗑️ Limpar todo o histórico", use_container_width=True):
+                st.session_state.historico_stories = []
+                st.success("Histórico limpo!")
+                st.rerun()
+                
+    if not st.session_state.historico_stories:
+        st.info("Nenhum Story gerado ainda.")
+    else:
+        for idx, story_hist in enumerate(st.session_state.historico_stories):
+            with st.container(border=True):
+                col_info, col_img = st.columns([3, 1])
+                with col_info:
+                    st.markdown(f"**{story_hist['destaque']}**")
+                    st.markdown(f"### {story_hist['titulo']}")
+                    st.caption(f"Categoria: {story_hist['categoria']} • Gerado em: {story_hist['data_geracao']}")
+                    
+                    col_h1, col_h2 = st.columns(2)
+                    with col_h1:
+                        st.download_button(
+                            "📥 Baixar PNG",
+                            data=story_hist['bytes'],
+                            file_name=story_hist['filename'],
+                            mime="image/png",
+                            key=f"hist_down_{idx}"
+                        )
+                    with col_h2:
+                        if st.button("🗑️ Apagar Story", key=f"del_hist_{idx}", use_container_width=True):
+                            st.session_state.historico_stories.pop(idx)
+                            st.success("Story removido do histórico!")
+                            st.rerun()
+                with col_img:
+                    st.image(story_hist['bytes'], width=150)
