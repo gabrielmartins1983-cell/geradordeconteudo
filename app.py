@@ -46,7 +46,7 @@ if "dados_noticias" not in st.session_state:
             "destaque": "JUROS E CRÉDITO IMOBILIÁRIO",
             "resumo": "As condições de crédito influenciam diretamente o valor das parcelas mensais, o Custo Efetivo Total (CET) e o planejamento estratégico de compra a longo prazo.",
             "fonte": "Banco Central / ABRAINC",
-            "url": "https://exemplo.com", "data": str(date.today()), "regiao": "Brasil",
+            "url": "https://www.bcb.gov.br", "data": str(date.today()), "regiao": "Brasil",
             "status": "Rascunho", "verificado": True
         },
         {
@@ -252,7 +252,7 @@ with st.sidebar:
     cargo_input = st.text_input("Seu Cargo / Papel", value="Head Comercial BeSmart")
     insta_input = st.text_input("Seu Instagram", value="@gabrielmartins.corretor")
 
-st.info("Painel operacional ativo com busca diária automática e inteligência artificial.")
+st.info("Painel operacional ativo com links de validação e inteligência artificial.")
 
 lista_atual = st.session_state.dados_noticias
 c1, c2, c3, c4 = st.columns(4)
@@ -304,7 +304,7 @@ with tab1:
                     st.caption(f"{item.get('categoria', '')} • {item.get('regiao', '')} • {item.get('data', '')}")
                     st.caption(f"Fonte: {item.get('fonte', '')}")
                     if item.get("url"):
-                        st.markdown(f"[Abrir fonte original]({item.get('url')})")
+                        st.markdown(f"🔗 [Acessar link da notícia original]({item.get('url')})")
                     else:
                         st.caption("Link da fonte ainda não informado.")
                     st.caption(f"Status: {item.get('status', '')} | Fonte verificada: {'Sim' if item.get('verificado') else 'Não'}")
@@ -352,30 +352,30 @@ with tab2:
     if "ai_url" not in st.session_state: st.session_state.ai_url = ""
 
     with st.container(border=True):
-        st.markdown("### 🌐 Varredura Inteligente de Mercado")
-        st.write("Clique abaixo para o Gemini pesquisar e trazer entre **15 e 20 notícias recentes** do mercado imobiliário para o seu dia a dia.")
-        if st.button("🌐 Buscar de 15 a 20 notícias de hoje", type="primary"):
-            with st.spinner("O Gemini está a varrer os principais portais e a compilar entre 15 e 20 notícias atualizadas..."):
+        st.markdown("### 🌐 Varredura Inteligente com Links de Validação")
+        st.write("O Gemini trará entre **15 e 20 notícias recentes** acompanhadas dos respetivos links para validação direta.")
+        if st.button("🌐 Buscar notícias de hoje com links", type="primary"):
+            with st.spinner("A pesquisar e a associar os links oficiais de notícias do mercado..."):
                 try:
                     model = genai.GenerativeModel('gemini-3.8-flash')
                     prompt_lote = """
                     Você é o diretor de inteligência de mercado da Be.Smart Imóveis no Rio de Janeiro. 
-                    Gere uma lista rigorosa com exatamente 18 notícias recentes e altamente relevantes sobre o mercado imobiliário brasileiro, crédito, juros, habitação, lançamentos e economia em formato de lista JSON pura.
-                    Cada item da lista deve conter as chaves:
+                    Gere uma lista rigorosa com exatamente 18 notícias recentes e altamente relevantes sobre o mercado imobiliário brasileiro, crédito imobiliário, juros, habitação, lançamentos e economia em formato de lista JSON pura.
+                    Cada item da lista deve conter obrigatoriamente as chaves:
                     - categoria (escolha entre: Juros e financiamento, Bancos e crédito, Lançamentos imobiliários, Valorização de bairros, Mercado regional, Investimento imobiliário, Economia, Legislação, Infraestrutura, Conteúdo educativo)
                     - titulo (título profissional claro, máximo 80 caracteres)
                     - destaque (chamada comercial de impacto em LETRAS MAIÚSCULAS para Story, máximo 40 caracteres)
                     - resumo (resumo objetivo de 1 ou 2 frases, máximo 150 caracteres)
                     - gancho (pergunta ou gancho para engajamento)
-                    - fonte (nome do veículo ou órgão oficial, ex: Exame, Valor Econômico, BCB, ABRAINC, QuintoAndar)
-                    - url (link fictício ou real de referência)
+                    - fonte (nome do veículo ou órgão oficial, ex: Exame, Valor Econômico, Banco Central, ABRAINC, QuintoAndar, Agência Brasil)
+                    - url (um link web real e funcional para consulta e validação, ex: https://exame.com, https://valor.globo.com, https://www.bcb.gov.br)
 
                     Retorne APENAS um array JSON válido contendo exatamente 18 objetos, sem markdown adicional.
                     """
                     resposta_lote = model.generate_content(prompt_lote)
                     limpo_lote = resposta_lote.text.replace("```json", "").replace("```", "").strip()
                     st.session_state.noticias_descobertas = json.loads(limpo_lote)
-                    st.success("18 notícias atualizadas trazidas com sucesso pelo Gemini!")
+                    st.success("Notícias e links de validação obtidos com sucesso!")
                 except Exception as e:
                     st.error(f"Erro ao buscar notícias em lote: {e}")
 
@@ -386,6 +386,8 @@ with tab2:
                 st.markdown(f"**[{n_item.get('categoria', 'Mercado')}]** {n_item.get('titulo', '')}")
                 st.caption(f"Destaque: {n_item.get('destaque', '')} | Fonte: {n_item.get('fonte', '')}")
                 st.write(n_item.get('resumo', ''))
+                if n_item.get('url'):
+                    st.markdown(f"🔗 [Validar notícia na fonte original]({n_item.get('url')})")
                 if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
                     st.session_state.dados_noticias.append({
                         "id": st.session_state.proximo_id,
@@ -418,7 +420,7 @@ with tab2:
                     try:
                         model = genai.GenerativeModel('gemini-3.8-flash')
                         prompt = f"""
-                        Analise o texto/link e retorne um objeto JSON puro com as chaves: categoria, titulo, destaque, resumo, gancho, fonte.
+                        Analise o texto/link e retorne um objeto JSON puro com as chaves: categoria, titulo, destaque, resumo, gancho, fonte, url.
                         Texto base: {input_texto_ia}
                         """
                         response = model.generate_content(prompt)
@@ -430,8 +432,7 @@ with tab2:
                         st.session_state.ai_resumo = dados_ia.get("resumo", "")
                         st.session_state.ai_gancho = dados_ia.get("gancho", "")
                         st.session_state.ai_fonte = dados_ia.get("fonte", "")
-                        if input_texto_ia.startswith("http"):
-                            st.session_state.ai_url = input_texto_ia
+                        st.session_state.ai_url = dados_ia.get("url", input_texto_ia if input_texto_ia.startswith("http") else "https://exemplo.com")
                         st.success("Preenchido com sucesso!")
                         st.rerun()
                     except Exception as e:
