@@ -264,7 +264,14 @@ c4.metric("Stories gerados", len(st.session_state.historico_stories))
 tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "➕ Novo conteúdo com IA", "📚 Histórico & Métricas"])
 
 with tab1:
-    st.subheader("Biblioteca de informações")
+    col_t1, col_t2 = st.columns([3, 1])
+    with col_t1:
+        st.subheader("Biblioteca de informações")
+    with col_t2:
+        if st.button("🗑️ Limpar toda a biblioteca", use_container_width=True):
+            st.session_state.dados_noticias = []
+            st.success("Biblioteca limpa com sucesso!")
+            st.rerun()
     
     if st.session_state.story_ativo is not None:
         with st.container(border=True):
@@ -285,9 +292,9 @@ with tab1:
     shown = [i for i in lista_atual if isinstance(i, dict) and (filt == "Todos" or i.get("status") == filt)]
     
     if not shown:
-        st.info("Nenhum conteúdo encontrado.")
+        st.info("Nenhum conteúdo encontrado na biblioteca.")
     else:
-        for item in shown:
+        for idx_item, item in enumerate(shown):
             with st.container(border=True):
                 left, right = st.columns([4,1])
                 with left:
@@ -302,7 +309,7 @@ with tab1:
                         st.caption("Link da fonte ainda não informado.")
                     st.caption(f"Status: {item.get('status', '')} | Fonte verificada: {'Sim' if item.get('verificado') else 'Não'}")
                 with right:
-                    if st.button("Gerar Story", key=f"story_{item.get('id')}", use_container_width=True):
+                    if st.button("Gerar Story", key=f"story_{item.get('id')}_{idx_item}", use_container_width=True):
                         img_bytes = make_story(item, nome_input, cargo_input, insta_input)
                         filename_gerado = f"besmart_news_{item.get('id')}_{datetime.now().strftime('%H%M%S')}.png"
                         
@@ -323,11 +330,16 @@ with tab1:
                         st.rerun()
 
                     if item.get("status") != "Aprovado":
-                        if st.button("Aprovar", key=f"approve_{item.get('id')}", use_container_width=True):
+                        if st.button("Aprovar", key=f"approve_{item.get('id')}_{idx_item}", use_container_width=True):
                             item["status"] = "Aprovado"
                             st.rerun()
                     else:
                         st.success("Aprovado")
+
+                    if st.button("🗑️ Excluir", key=f"delete_{item.get('id')}_{idx_item}", use_container_width=True):
+                        st.session_state.dados_noticias = [x for x in st.session_state.dados_noticias if x.get('id') != item.get('id')]
+                        st.success("Conteúdo excluído com sucesso!")
+                        st.rerun()
 
 with tab2:
     st.subheader("Cadastrar com Inteligência Artificial")
