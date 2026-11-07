@@ -133,37 +133,33 @@ class HTMLTextExtractor(html.parser.HTMLParser):
                 self.text_chunks.append(t)
 
 def ler_conteudo_url(url):
-    """Acede ao link da matéria, faz web scraping básico e extrai texto relevante."""
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
         with urllib.request.urlopen(req, timeout=8) as resp:
-            html_bytes = resp.read(200000) # lê até 200kb de HTML
+            html_bytes = resp.read(200000)
             html_content = html_bytes.decode('utf-8', errors='ignore')
             
             parser = HTMLTextExtractor()
             parser.feed(html_content)
             texto_limpo = " ".join(parser.text_chunks)
-            # Retorna um trecho representativo do conteúdo da matéria
             return texto_limpo[:1200]
     except Exception:
         return ""
 
 def gerar_resumo_inteligente(titulo, texto_base):
-    """Usa o Gemini para ler o conteúdo raspado da matéria e gerar o resumo ideal para o Story."""
     try:
         model = genai.GenerativeModel('gemini-2.5-flash')
-        prompt = f"""Com base no título da matéria "{titulo}" e no conteúdo extraído do site abaixo, elabore um resumo objetivo, profissional e de alto impacto de no máximo 140 caracteres, focado no ponto mais importante para o público e investidores imobiliários. Não use frases genéricas, traga informação concreta.
+        prompt = f"""Com base no título da matéria "{titulo}" e no conteúdo extraído do site abaixo, elabore um resumo objetivo, profissional e de alto impacto de no máximo 130 caracteres, focado no ponto mais importante para o público e investidores imobiliários. Não use frases genéricas, traga informação concreta.
         
 Conteúdo extraído: {texto_base[:800]}"""
         
         resp = model.generate_content(prompt)
         resumo = resp.text.strip().replace('"', '')
         if len(resumo) > 10:
-            return resumo[:150]
+            return resumo[:140]
     except Exception:
         pass
     
-    # Fallback inteligente baseado em palavras-chave se a IA falhar
     t_lower = titulo.lower()
     if "juros" in t_lower or "selic" in t_lower:
         return "A alta nas taxas impacta o Custo Efetivo Total, exigindo reavaliação imediata de crédito e planejamento de entrada."
@@ -260,26 +256,28 @@ def make_story(item, corretores_selecionados):
     fnt_cat = obter_fonte(30, True)
     d.text((margin, 340), cat[:38], font=fnt_cat, fill="#B99AE8")
     
-    title_font = obter_fonte(72, True)
+    # Ajuste de tamanho de fonte e espaçamento para evitar cortes no título
+    title_font = obter_fonte(56, True)
     lines = wrap_lines(d, item.get("destaque", "").strip(), title_font, W-2*margin)
-    y = 430
+    y = 420
     for line in lines[:4]:
         d.text((margin, y), line, font=title_font, fill=WHITE)
-        y += 92
+        y += 74
 
-    y += 24
-    d.rounded_rectangle((margin, y, margin+280, y+14), radius=7, fill=PURPLE)
+    y += 15
+    d.rounded_rectangle((margin, y, margin+280, y+12), radius=6, fill=PURPLE)
     
-    body_font = obter_fonte(44)
+    # Ajuste de tamanho de fonte e espaçamento do resumo
+    body_font = obter_fonte(38)
     body_lines = wrap_lines(d, item.get("resumo", "").strip(), body_font, W-2*margin)
-    y += 90
+    y += 50
     for line in body_lines[:6]:
         d.text((margin, y), line, font=body_font, fill=SILVER)
-        y += 66
+        y += 54
 
-    y += 40
+    y += 20
     fonte_texto = f"Fonte: {item.get('fonte', 'Verificado')}"
-    fnt_fonte = obter_fonte(28, True)
+    fnt_fonte = obter_fonte(26, True)
     d.text((margin, y), fonte_texto[:60], font=fnt_fonte, fill="#A49CB8")
 
     card_corr_top = 1320
@@ -506,7 +504,6 @@ with tab2:
                             titulo_limpo = partes[0]
                             fonte_nome = partes[1] if len(partes) > 1 else "Google News"
                             
-                            # Acede à matéria real para ler o conteúdo e gerar um resumo inteligente
                             texto_extraido = ler_conteudo_url(link_original)
                             resumo_efetivo = gerar_resumo_inteligente(titulo_limpo, texto_extraido)
 
