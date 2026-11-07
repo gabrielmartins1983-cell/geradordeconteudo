@@ -6,7 +6,7 @@ import os
 import random
 import urllib.parse
 import urllib.request
-import xml.etree.ElementTree as ET
+import json
 
 st.set_page_config(page_title="BeSmart News | Painel administrativo", page_icon="🟣", layout="wide")
 
@@ -409,60 +409,45 @@ with tab2:
     st.subheader("Varredura Dinâmica em Tempo Real")
     
     with st.container(border=True):
-        st.markdown("### 🌐 Atualização Diária da Imprensa (Busca Aberta)")
-        st.write("Clique no botão abaixo para buscar em tempo real as matérias mais recentes publicadas na imprensa sobre o mercado imobiliário brasileiro, habitação e economia.")
+        st.markdown("### 🌐 Atualização Diária da Imprensa (Busca Direta)")
+        st.write("Clique no botão abaixo para buscar em tempo real as matérias mais recentes da imprensa através de motores públicos de busca abertos.")
         
         if st.button("🔄 Executar Varredura Dinâmica de Notícias", type="primary"):
             noticias_extraidas = []
             
-            # Termos amplos e abertos para capturar o fluxo diário em qualquer região do país
-            termos_pesquisa = [
-                "mercado imobiliario",
-                "lancamentos imobiliarios",
-                "financiamento imobiliario juros",
-                "setor imobiliario economia",
-                "imoveis venda locacao"
-            ]
+            # Consulta via API pública e aberta de artigos indexados recentemente
+            termos_pesquisa = ["mercado imobiliario", "lancamentos imobiliarios", "financiamento imobiliario juros"]
             
             for termo in termos_pesquisa:
-                url_rss = f"https://news.google.com/rss/search?q={urllib.parse.quote_plus(termo)}&hl=pt-BR&gl=BR&ceid=BR:pt-415"
+                url_api = f"https://api.duckduckgo.com/?q={urllib.parse.quote_plus(termo + ' noticia site:globo.com OR site:exame.com OR site:infomoney.com.br OR site:uol.com.br')}&format=json&no_html=1"
                 try:
-                    # Headers otimizados para evitar barreiras de requisição automática
-                    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-                    req = urllib.request.Request(url_rss, headers=headers)
+                    req = urllib.request.Request(url_api, headers={'User-Agent': 'Mozilla/5.0'})
                     with urllib.request.urlopen(req, timeout=10) as resp:
-                        xml_data = resp.read()
-                        root = ET.fromstring(xml_data)
+                        data = json.loads(resp.read().decode('utf-8'))
                         
-                        for item in root.findall('.//item'):
-                            link_original = item.find('link').text if item.find('link') is not None else ""
-                            if not link_original or 'google.com' in link_original:
-                                continue
+                        # Processa os resultados relacionados retornados pela engine aberta
+                        for topic in data.get('RelatedTopics', []):
+                            if 'Text' in topic and 'FirstURL' in topic:
+                                texto_completo = topic['Text']
+                                url_item = topic['FirstURL']
                                 
-                            titulo_original = item.find('title').text if item.find('title') is not None else "Notícia Imobiliária"
-                            descricao = item.find('description').text if item.find('description') is not None else ""
-                            data_pub_str = item.find('pubDate').text if item.find('pubDate') is not None else str(date.today())
-                            
-                            partes = titulo_original.split(" - ")
-                            titulo_limpo = partes[0]
-                            fonte_nome = partes[1] if len(partes) > 1 else "Imprensa"
-                            
-                            resumo_real = f"Cobertura jornalística recente sobre {termo}, destacando tendências e movimentações do mercado."
-                            if len(descricao) > 30 and "<" not in descricao:
-                                resumo_real = descricao.strip()
-
-                            noticias_extraidas.append({
-                                "categoria": "Lançamentos imobiliários" if "lancamentos" in termo else "Juros e financiamento",
-                                "titulo": titulo_limpo,
-                                "destaque": titulo_limpo.upper(),
-                                "resumo": resumo_real,
-                                "fonte": fonte_nome,
-                                "url": link_original,
-                                "data": data_pub_str[:16]
-                            })
+                                partes = texto_completo.split(" - ")
+                                titulo_limpo = partes[0]
+                                fonte_nome = partes[1] if len(partes) > 1 else "Portal de Notícias"
+                                
+                                noticias_extraidas.append({
+                                    "categoria": "Lançamentos imobiliários" if "lancamentos" in termo else "Juros e financiamento",
+                                    "titulo": titulo_limpo,
+                                    "destaque": titulo_limpo.upper(),
+                                    "resumo": f"Cobertura recente da imprensa abordando o setor imobiliário, tendências e análises de mercado.",
+                                    "fonte": fonte_nome,
+                                    "url": url_item,
+                                    "data": str(date.today())
+                                })
                 except Exception:
                     continue
             
+            # Remove duplicadas
             vistos = set()
             unicas = []
             for n in noticias_extraidas:
@@ -470,12 +455,12 @@ with tab2:
                     vistos.add(n['url'])
                     unicas.append(n)
             
-            st.session_state.noticias_descobertas = unicas[:25]
+            st.session_state.noticias_descobertas = unicas[:20]
             
             if st.session_state.noticias_descobertas:
                 st.success(f"{len(st.session_state.noticias_descobertas)} matérias atualizadas encontradas em tempo real!")
             else:
-                st.warning("A rede de notícias está restrita no momento atual. Caso necessário, utilize o cadastro manual abaixo para adicionar pautas novas.")
+                st.warning("A busca em tempo real não retornou itens no momento. Utilize o cadastro manual abaixo para registrar novas pautas.")
 
     if st.session_state.noticias_descobertas:
         st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Capturadas")
@@ -494,7 +479,7 @@ with tab2:
                         "titulo": n_item.get('titulo', ''),
                         "destaque": n_item.get('destaque', ''),
                         "resumo": n_item.get('resumo', ''),
-                        "fonte": n_item.get('fonte', 'Google News'),
+                        "fonte": n_item.get('fonte', 'Imprensa'),
                         "url": n_item.get('url', 'https://www.google.com'),
                         "data": str(date.today()),
                         "regiao": "Brasil",
