@@ -237,4 +237,30 @@ def make_story(item, corretores_selecionados):
         
         d.text((text_left, bloco_top), nome_corr[:26], font=fnt_nome, fill=WHITE)
         d.text((text_left, bloco_top + 48), info_corr['cargo'][:32], font=fnt_cargo, fill="#B99AE8")
-        d.text((text_left, bloco_top + 80), info_corr['insta'][:34], font=fnt_insta, fill=
+        d.text((text_left, bloco_top + 80), info_corr['insta'][:34], font=fnt_insta, fill=MUTED)
+
+    footer_y = 1800
+    d.line((margin, footer_y - 25, W-margin, footer_y - 25), fill="#4A3B66", width=2)
+    fnt_foot1 = obter_fonte(26, True)
+    d.text((margin, footer_y), "Fale com a nossa equipe de especialistas • Be.Smart Imóveis", font=fnt_foot1, fill="#B99AE8")
+
+    out = BytesIO()
+    im.save(out, format="PNG")
+    out.seek(0)
+    return out
+
+st.markdown('<div class="brand">be.smart <span>news</span></div><div class="small-muted">INTELIGÊNCIA IMOBILIÁRIA • PAINEL ADMINISTRATIVO</div>', unsafe_allow_html=True)
+st.write("")
+
+with st.sidebar:
+    st.markdown("### ⚙️ Gestão de Corretores")
+    st.info("Edite os campos de nome, cargo e Instagram dos membros da equipa e clique em gravar.")
+    
+    lista_nomes = list(st.session_state.corretores_equipa.keys())
+    selecao_edicao = st.selectbox("Selecionar Corretor para Editar", ["➕ Adicionar Novo Corretor"] + lista_nomes)
+    
+    if selecao_edicao == "➕ Adicionar Novo Corretor":
+        with st.form("form_novo_corretor"):
+            novo_nome = st.text_input("Nome do Corretor")
+            novo_cargo = st.text_input("Cargo", value="Corretor Associado")
+            novo_insta = st.text_input("Instagram", value="@besmartimoveis")
