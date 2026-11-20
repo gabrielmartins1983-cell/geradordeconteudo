@@ -1,3 +1,5 @@
-streamlit>=1.35
-Pillow>=10.0
-google-generativeai>=0.8.0
+streamlit>=1.36
+pillow>=10.1
+numpy
+imageio-ffmpeg        # traz o ffmpeg embutido (necessário para o vídeo do Reel)
+# anthropic           # opcional: sugestões de texto com IA (defina ANTHROPIC_API_KEY)

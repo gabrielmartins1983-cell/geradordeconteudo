@@ -1,27 +1,31 @@
-import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
-from io import BytesIO
-from datetime import date, datetime
+"""BeSmart News - painel administrativo (interface).
+
+Fluxo: Varredura -> escolher matérias -> Biblioteca (editar/validar/aprovar)
+        -> gerar Story + Reel + Feed + legendas -> baixar / publicar.
+Rodar com:  streamlit run app.py
+"""
 import os
-import random
-import urllib.parse
-import urllib.request
-import xml.etree.ElementTree as ET
+import time
 
-st.set_page_config(page_title="BeSmart News | Painel administrativo", page_icon="🟣", layout="wide")
+import streamlit as st
 
-PURPLE = "#9966FF"
-WHITE = "#FFFFFF"
-SILVER = "#F3F3F3"
-MUTED = "#B8B5C1"
+import core
 
-st.markdown("""
+st.set_page_config(page_title="BeSmart News | Painel", page_icon="🟣", layout="wide")
+
+try:  
+    if "ANTHROPIC_API_KEY" in st.secrets:
+        os.environ.setdefault("ANTHROPIC_API_KEY", st.secrets["ANTHROPIC_API_KEY"])
+except Exception:  
+    pass
+
+st.markdown(
+    """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&display=swap');
+@import url('[https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&display=swap)');
 html, body, [class*="css"] { font-family: 'Barlow', sans-serif; }
 .stApp { background: #090B12; color: #F4F2F7; }
 .block-container { padding-top: 2rem; max-width: 1400px; }
-h1,h2,h3 { font-family: 'Barlow', sans-serif; }
 .small-muted { color: #B8B5C1; font-size: .9rem; }
 .brand { font-size: 1.7rem; font-weight: 600; letter-spacing: -.04em; }
 .brand span { color: #9966FF; }
@@ -29,570 +33,469 @@ div[data-testid="stMetric"] { background:#11131D; border:1px solid #282333; padd
 .stButton button, .stDownloadButton button { border-radius: 8px; }
 hr { border-color: #332744; }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-if "dados_noticias" not in st.session_state:
-    st.session_state.dados_noticias = [
-        {
-            "id": 1, 
-            "categoria": "Juros e financiamento",
-            "titulo": "Painel de Inteligência Imobiliária BeSmart - Inicie a varredura filtrada",
-            "destaque": "PAINEL ADMINISTRATIVO",
-            "resumo": "Utilize a aba ao lado para executar a varredura filtrada e capturar notícias estritamente do mercado imobiliário.",
-            "fonte": "Sistema BeSmart",
-            "url": "https://www.google.com", 
-            "data": str(date.today()), 
-            "regiao": "Brasil",
-            "status": "Rascunho", 
-            "verificado": True
-        }
-    ]
+if "db" not in st.session_state:
+    st.session_state.db = core.carregar_db()
+st.session_state.setdefault("descobertas", [])
+st.session_state.setdefault("stats_varredura", None)
+st.session_state.setdefault("erros_varredura", [])
+st.session_state.setdefault("ultimo_post", None)
 
-if "proximo_id" not in st.session_state:
-    st.session_state.proximo_id = 2
+db = st.session_state.db
+corretores = db["corretores"]
+consultas = db["consultas"]
+ICONE = {"Rascunho": "📝", "Aprovado": "✅", "Gerado": "🎬"}
 
-if "story_ativo" not in st.session_state:
-    st.session_state.story_ativo = None
 
-if "historico_stories" not in st.session_state:
-    st.session_state.historico_stories = []
+def salvar():
+    core.salvar_db(db)
 
-if "noticias_descobertas" not in st.session_state:
-    st.session_state.noticias_descobertas = []
 
-if "corretores_equipa" not in st.session_state:
-    st.session_state.corretores_equipa = {
-        "Gabriel Martins": {"cargo": "Head Comercial BeSmart", "insta": "@gabrielmartins.corretor"},
-        "Equipe Comercial BeSmart": {"cargo": "Consultoria Imobiliária", "insta": "@besmartimoveis"}
-    }
+def esc(txt) -> str:
+    return str(txt or "").replace("$", r"\$")
 
-def obter_fonte(size, bold=False):
-    candidatos = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "arialbd.ttf" if bold else "arial.ttf",
-        "DejaVuSans.ttf"
-    ]
-    for p in candidatos:
-        try:
-            return ImageFont.truetype(p, size)
-        except IOError:
-            continue
-    return ImageFont.load_default()
 
-def wrap_lines(draw, text, fnt, max_width):
-    words = text.split()
-    lines, current = [], ""
-    for word in words:
-        test = (current + " " + word).strip()
-        try:
-            if hasattr(draw, 'textbbox'):
-                bbox = draw.textbbox((0, 0), test, font=fnt)
-                w = bbox[2] - bbox[0]
-            else:
-                w = len(test) * (fnt.size // 2)
-        except Exception:
-            w = len(test) * 15
-        
-        if w <= max_width:
-            current = test
-        else:
-            if current: lines.append(current)
-            current = word
-    if current: lines.append(current)
-    return lines
-
-def carregar_imagem_contexto(item_id, categoria):
-    base = "https://images.unsplash.com/photo-"
-    fim = "?q=80&w=1080"
-    
-    curadoria = {
-        "Juros e financiamento": ["1486406146926-c627a92ad1ab", "1526304640581-d334cdbbf45e"],
-        "Bancos e crédito": ["1501167786227-4cba60f6d58f", "1601597111158-2fceff292cdc"],
-        "Lançamentos imobiliários": ["1460317442991-0ec209397118", "1545324418-cc1a3fa10c00"],
-        "Valorização de bairros": ["1449844908441-8829872d2607", "1519501025264-65ba15a82390"],
-        "Mercado regional": ["1477959858617-67f85cf4f1df", "1480714378408-67cf0d13bc1b"],
-        "Investimento imobiliário": ["1560518883-ce09059eeffa", "1558036117-15d82a90b9b1"],
-        "Economia": ["1611974789855-9c2a0a7236a3", "1590283603385-17ffb3a7f29f"],
-        "Legislação": ["1589829085413-56de8ae18c73", "1505664159854-232fb110c896"],
-        "Infraestrutura": ["1541888086425-d81bb19240f5", "1503387762-592deb58ef4e"],
-        "Conteúdo educativo": ["1524178232363-1fb2b075b655", "1513258496099-48166614a142"]
-    }
-    
-    lista_ids = curadoria.get(categoria, curadoria["Investimento imobiliário"])
-    foto_id = lista_ids[item_id % len(lista_ids)]
-    url = base + foto_id + fim
-    
+def cheio(fn, *args, **kw):
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            img_data = resp.read()
-            base_img = Image.open(BytesIO(img_data)).convert("RGB")
-            
-            w, h = base_img.size
-            if w > h:
-                left = (w - h * (1080/1920)) / 2
-                base_img = base_img.crop((left, 0, w - left, h))
-                
-            base_img = base_img.resize((1080, 1920), Image.Resampling.LANCZOS)
-            base_img = base_img.filter(ImageFilter.GaussianBlur(radius=6))
-            overlay = Image.new("RGBA", (1080, 1920), (12, 10, 18, 225))
-            im = Image.alpha_composite(base_img.convert("RGBA"), overlay).convert("RGB")
-            return im
-    except Exception:
-        im = Image.new("RGB", (1080, 1920), (15, 13, 24))
-        draw = ImageDraw.Draw(im)
-        for i in range(0, 1920, 40):
-            val = int(15 + (i / 1920) * 25)
-            draw.line([(0, i), (1080, i)], fill=(val, val, val + 15), width=2)
-        draw.rectangle([90, 90, 990, 1830], outline="#332744", width=3)
-        return im
+        return fn(*args, width="stretch", **kw)
+    except TypeError:
+        return fn(*args, use_container_width=True, **kw)
 
-def inserir_logotipo_inteligente(im, x, y, largura_desejada=420):
-    candidatos = [
-        "BS - Imóveis Horizontal - Branco - BG Preto.png",
-        "BS - Imóveis Horizontal - RGB - BG Branco.png",
-        "BS - Imóveis Horizontal - Preto - BG Branco.png",
-        "logo_oficial.png"
-    ]
-    logo_img = None
-    for nome_arq in candidatos:
-        if os.path.exists(nome_arq):
-            try:
-                logo_img = Image.open(nome_arq).convert("RGBA")
-                break
-            except Exception:
-                continue
-                
-    if logo_img is not None:
-        w_orig, h_orig = logo_img.size
-        fator = largura_desejada / w_orig
-        novo_h = int(h_orig * fator)
-        logo_img = logo_img.resize((largura_desejada, novo_h), Image.Resampling.LANCZOS)
-        im.paste(logo_img, (x, y), logo_img)
-    else:
-        d = ImageDraw.Draw(im)
-        fnt_logo = obter_fonte(36, True)
-        d.text((x, y), "be.smart imóveis", font=fnt_logo, fill=WHITE)
 
-def make_story(item, corretores_selecionados):
-    W, H = 1080, 1920
-    im = carregar_imagem_contexto(item.get("id", 1), item.get("categoria", ""))
-    
-    margin = 90
-    inserir_logotipo_inteligente(im, x=margin, y=110, largura_desejada=420)
-    
-    d = ImageDraw.Draw(im)
-    d.line((margin, 270, W-margin, 270), fill="#4A3B66", width=2)
-
-    cat = item.get("categoria", "").upper()
-    fnt_cat = obter_fonte(30, True)
-    d.text((margin, 340), cat, font=fnt_cat, fill="#B99AE8")
-    
-    title_font = obter_fonte(64, True)
-    destaque_texto = item.get("destaque", "").strip()
-    lines = wrap_lines(d, destaque_texto, title_font, W-2*margin)
-    y = 420
-    for line in lines[:5]:
-        d.text((margin, y), line, font=title_font, fill=WHITE)
-        y += 82
-
-    y += 18
-    d.rounded_rectangle((margin, y, margin+280, y+14), radius=7, fill=PURPLE)
-    
-    body_font = obter_fonte(42)
-    resumo_texto = item.get("resumo", "").strip()
-    body_lines = wrap_lines(d, resumo_texto, body_font, W-2*margin)
-    y += 75
-    for line in body_lines[:8]:
-        d.text((margin, y), line, font=body_font, fill=SILVER)
-        y += 60
-
-    y += 30
-    fonte_texto = f"Fonte: {item.get('fonte', 'Verificado')}"
-    fnt_fonte = obter_fonte(28, True)
-    d.text((margin, y), fonte_texto, font=fnt_fonte, fill="#A49CB8")
-
-    card_corr_top = 1320
-    avatar_x = 220
-    espacamento_bloco = 150 if len(corretores_selecionados) <= 2 else 120
-    
-    for idx_corr, nome_corr in enumerate(corretores_selecionados[:3]):
-        info_corr = st.session_state.corretores_equipa.get(nome_corr, {"cargo": "Consultor Imobiliário", "insta": "@besmartimoveis"})
-        
-        avatar_y = card_corr_top + (idx_corr * espacamento_bloco) + 50
-        avatar_r = 55
-        
-        d.ellipse((avatar_x - avatar_r, avatar_y - avatar_r, avatar_x + avatar_r, avatar_y + avatar_r), fill="#9966FF")
-        fnt_avatar = obter_fonte(38, True)
-        iniciais = "".join([n[0] for n in nome_corr.split()[:2]]).upper()
-        d.text((avatar_x - 24, avatar_y - 25), iniciais, font=fnt_avatar, fill=WHITE)
-
-        text_left = avatar_x + avatar_r + 30
-        bloco_top = card_corr_top + (idx_corr * espacamento_bloco)
-        
-        fnt_nome = obter_fonte(38, True)
-        fnt_cargo = obter_fonte(24, True)
-        fnt_insta = obter_fonte(22)
-        
-        d.text((text_left, bloco_top), nome_corr, font=fnt_nome, fill=WHITE)
-        d.text((text_left, bloco_top + 48), info_corr['cargo'], font=fnt_cargo, fill="#B99AE8")
-        d.text((text_left, bloco_top + 80), info_corr['insta'], font=fnt_insta, fill=MUTED)
-
-    footer_y = 1800
-    d.line((margin, footer_y - 25, W-margin, footer_y - 25), fill="#4A3B66", width=2)
-    fnt_foot1 = obter_fonte(26, True)
-    d.text((margin, footer_y), "Fale com a nossa equipe • Be.Smart Imóveis", font=fnt_foot1, fill="#B99AE8")
-
-    out = BytesIO()
-    im.save(out, format="PNG")
-    out.seek(0)
-    return out
-
-st.markdown('<div class="brand">be.smart <span>news</span></div><div class="small-muted">INTELIGÊNCIA IMOBILIÁRIA • PAINEL ADMINISTRATIVO</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="brand">be.smart <span>news</span></div>'
+    '<div class="small-muted">INTELIGÊNCIA IMOBILIÁRIA • PAINEL ADMINISTRATIVO</div>',
+    unsafe_allow_html=True,
+)
 st.write("")
 
 with st.sidebar:
-    st.markdown("### ⚙️ Gestão de Corretores")
-    
-    lista_nomes = list(st.session_state.corretores_equipa.keys())
-    selecao_edicao = st.selectbox("Selecionar Corretor", ["➕ Adicionar Novo Corretor"] + lista_nomes)
-    
-    if selecao_edicao == "➕ Adicionar Novo Corretor":
-        with st.form("form_novo_corretor"):
-            novo_nome = st.text_input("Nome do Corretor")
-            novo_cargo = st.text_input("Cargo", value="Corretor Associado")
-            novo_insta = st.text_input("Instagram", value="@besmartimoveis")
-            salvar_novo = st.form_submit_button("💾 Salvar Novo Corretor", use_container_width=True)
-            
-            if salvar_novo:
-                if novo_nome:
-                    st.session_state.corretores_equipa[novo_nome] = {"cargo": novo_cargo, "insta": novo_insta}
-                    st.success("Corretor gravado com sucesso!")
-                    st.rerun()
-                else:
-                    st.error("Insira o nome do corretor.")
-    else:
-        dados_atuais = st.session_state.corretores_equipa[selecao_edicao]
-        with st.form("form_edita_corretor"):
-            edit_nome = st.text_input("Nome do Corretor", value=selecao_edicao)
-            edit_cargo = st.text_input("Cargo", value=dados_atuais["cargo"])
-            edit_insta = st.text_input("Instagram", value=dados_atuais["insta"])
-            
-            col_e1, col_e2 = st.columns(2)
-            with col_e1:
-                salvar_edicao = st.form_submit_button("💾 Gravar", use_container_width=True)
-            with col_e2:
-                excluir_corr = st.form_submit_button("🗑️ Excluir", use_container_width=True)
-                
-            if salvar_edicao:
-                if edit_nome != selecao_edicao:
-                    del st.session_state.corretores_equipa[selecao_edicao]
-                st.session_state.corretores_equipa[edit_nome] = {"cargo": edit_cargo, "insta": edit_insta}
-                st.success("Alterações gravadas!")
+    st.markdown("### ⚙️ Corretores")
+    sel = st.selectbox("Selecionar corretor", ["➕ Adicionar novo"] + list(corretores))
+
+    if sel == "➕ Adicionar novo":
+        with st.form("form_novo_corretor", clear_on_submit=True):
+            n_nome = st.text_input("Nome")
+            n_cargo = st.text_input("Cargo", value="Corretor Associado")
+            n_insta = st.text_input("Instagram", value="@besmartimoveis")
+            n_foto = st.file_uploader("Foto (opcional)", type=["png", "jpg", "jpeg"])
+            ok = cheio(st.form_submit_button, "💾 Salvar novo corretor")
+        if ok:
+            n_nome = n_nome.strip()
+            if not n_nome:
+                st.error("Informe o nome.")
+            elif n_nome in corretores:
+                st.error("Já existe um corretor com esse nome.")
+            else:
+                info = {"cargo": n_cargo, "insta": n_insta}
+                if n_foto:
+                    info["foto"] = core.salvar_foto_corretor(n_nome, n_foto.getvalue())
+                corretores[n_nome] = info
+                salvar()
                 st.rerun()
-                
-            if excluir_corr:
-                if len(st.session_state.corretores_equipa) > 1:
-                    del st.session_state.corretores_equipa[selecao_edicao]
-                    st.success("Corretor removido com sucesso!")
-                    st.rerun()
-                else:
-                    st.error("Deve manter pelo menos um corretor.")
+    else:
+        atual = corretores[sel]
+        with st.form("form_edita_corretor"):
+            e_nome = st.text_input("Nome", value=sel)
+            e_cargo = st.text_input("Cargo", value=atual["cargo"])
+            e_insta = st.text_input("Instagram", value=atual["insta"])
+            e_foto = st.file_uploader("Trocar foto (opcional)", type=["png", "jpg", "jpeg"])
+            col_g, col_x = st.columns(2)
+            gravar = cheio(col_g.form_submit_button, "💾 Gravar")
+            excluir = cheio(col_x.form_submit_button, "🗑️ Excluir")
+        if gravar:
+            e_nome = e_nome.strip() or sel
+            if e_nome != sel and e_nome in corretores:
+                st.error("Já existe um corretor com esse nome.")
+            else:
+                novo = {"cargo": e_cargo, "insta": e_insta, "foto": atual.get("foto", "")}
+                if e_foto:
+                    novo["foto"] = core.salvar_foto_corretor(e_nome, e_foto.getvalue())
+                db["corretores"] = {(e_nome if k == sel else k): (novo if k == sel else v) for k, v in corretores.items()}
+                st.session_state.pop("corretores_ativos", None)
+                salvar()
+                st.rerun()
+        if excluir:
+            if len(corretores) > 1:
+                del corretores[sel]
+                st.session_state.pop("corretores_ativos", None)
+                salvar()
+                st.rerun()
+            else:
+                st.error("Mantenha pelo menos um corretor.")
 
     st.divider()
-    st.markdown("### 🎯 Corretores nos Stories")
-    corretores_ativos = st.multiselect(
-        "Selecione quem aparecerá",
-        options=list(st.session_state.corretores_equipa.keys()),
-        default=list(st.session_state.corretores_equipa.keys())[:1]
-    )
+    st.markdown("### 🎯 Corretores nas peças")
+    nomes = list(corretores)
+    ativos = st.multiselect("Quem aparece (até 3)", nomes, default=nomes[:1], key="corretores_ativos", max_selections=3) or nomes[:1]
     
-    if not corretores_ativos:
-        corretores_ativos = [list(st.session_state.corretores_equipa.keys())[0]]
-
-lista_atual = st.session_state.dados_noticias
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Conteúdos", len(lista_atual))
-c2.metric("Rascunhos", sum(1 for i in lista_atual if i.get("status") == "Rascunho"))
-c3.metric("Aprovados", sum(1 for i in lista_atual if i.get("status") == "Aprovado"))
-c4.metric("Stories gerados", len(st.session_state.historico_stories))
-
-tab1, tab2, tab3 = st.tabs(["📰 Conteúdos", "🔄 Varredura Setorial Filtrada", "📚 Histórico & Métricas"])
-
-with tab1:
-    col_t1, col_t2 = st.columns([3, 1])
-    with col_t1:
-        st.subheader("Biblioteca de informações")
-    with col_t2:
-        if st.button("🗑️ Limpar biblioteca", use_container_width=True):
-            st.session_state.dados_noticias = []
-            st.success("Limpa!")
+    st.divider()
+    st.markdown("### 🔎 Gerir Assuntos de Busca")
+    with st.form("form_novo_assunto", clear_on_submit=True):
+        novo_nome = st.text_input("Nome do Assunto", placeholder="Ex: Lançamentos de Luxo")
+        novo_termo = st.text_area("Termos de busca do Google", placeholder='Ex: ("imóvel de luxo" OR penthouse) RJ')
+        add_assunto = cheio(st.form_submit_button, "➕ Adicionar Assunto")
+    if add_assunto:
+        novo_nome = novo_nome.strip()
+        novo_termo = novo_termo.strip()
+        if not novo_nome or not novo_termo:
+            st.error("Preencha o nome e os termos de busca.")
+        elif novo_nome in consultas:
+            st.error("Já existe um assunto com esse nome.")
+        else:
+            consultas[novo_nome] = novo_termo
+            salvar()
+            st.success(f"Assunto '{novo_nome}' adicionado!")
             st.rerun()
-    
-    if st.session_state.story_ativo is not None:
-        with st.container(border=True):
-            col_prev1, col_prev2 = st.columns([1, 3])
-            with col_prev1:
-                st.image(st.session_state.story_ativo["bytes"], width=180)
-            with col_prev2:
-                st.markdown("### 📱 Story Gerado com Sucesso")
-                st.write(f"**{st.session_state.story_ativo['titulo']}**")
-                st.download_button(
-                    "📥 Baixar PNG (1080x1920)", 
-                    data=st.session_state.story_ativo["bytes"], 
-                    file_name=st.session_state.story_ativo["filename"], 
-                    mime="image/png"
-                )
-                if st.button("✖️ Fechar prévia"):
-                    st.session_state.story_ativo = None
+
+    if len(consultas) > 1:
+        remover_assunto = st.selectbox("Remover assunto", ["Selecione..."] + list(consultas.keys()))
+        if remover_assunto != "Selecione..." and st.button("🗑️ Apagar Assunto Selecionado"):
+            del consultas[remover_assunto]
+            salvar()
+            st.rerun()
+
+    st.divider()
+    st.caption("✨ IA: " + ("ativa" if core.ia_disponivel() else "desligada (opcional)"))
+
+noticias = db["noticias"]
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Na biblioteca", len(noticias))
+m2.metric("Rascunhos", sum(1 for n in noticias if n["status"] == "Rascunho"))
+m3.metric("Aprovadas", sum(1 for n in noticias if n["status"] == "Aprovado"))
+m4.metric("Pacotes gerados", len(db["posts"]))
+
+tab_var, tab_bib, tab_hist = st.tabs(["🔄 Varredura", "📰 Biblioteca", "📚 Publicações"])
+
+
+def painel_pacote(post: dict, chave: str):
+    base = core.slug(post["titulo"])[:40]
+    story, feed = core.ler_arquivo(post, "story"), core.ler_arquivo(post, "feed")
+    reel, capa = core.ler_arquivo(post, "reel"), core.ler_arquivo(post, "capa")
+    if post.get("aviso"):
+        st.warning(post["aviso"])
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.caption("📱 Story • 1080×1920")
+        if story:
+            st.image(story)
+            cheio(st.download_button, "📥 Baixar Story", story, file_name=f"story_{base}.png", mime="image/png", key=f"dl_s_{chave}")
+    with c2:
+        st.caption("🖼️ Feed • 1080×1350 (4:5)")
+        if feed:
+            st.image(feed)
+            cheio(st.download_button, "📥 Baixar Feed", feed, file_name=f"feed_{base}.png", mime="image/png", key=f"dl_f_{chave}")
+    with c3:
+        st.caption("🎬 Reel • vídeo 1080×1920")
+        if reel:
+            st.video(reel)
+            cheio(st.download_button, "📥 Baixar Reel (MP4)", reel, file_name=f"reel_{base}.mp4", mime="video/mp4", key=f"dl_r_{chave}")
+        elif capa:
+            st.image(capa)
+    with st.expander("📝 Legendas e hashtags (copie e cole no Instagram)"):
+        t1, t2, t3 = st.tabs(["Feed", "Reel", "Story"])
+        for aba, nome in ((t1, "feed"), (t2, "reel"), (t3, "story")):
+            with aba:
+                st.text_area("Legenda", post["legendas"][nome], height=230, key=f"leg_{nome}_{chave}", label_visibility="collapsed")
+    cheio(st.download_button, "📦 Baixar tudo (.zip)", core.zip_post(post), file_name=f"{base}.zip", mime="application/zip", key=f"dl_z_{chave}")
+
+
+def gerar(item: dict, escolhidos: list[str]):
+    barra = st.progress(0.0, text="Iniciando e criando imagem por IA…")
+    try:
+        pacote = core.gerar_midias(
+            item, {n: corretores[n] for n in escolhidos},
+            progresso=lambda f, t: barra.progress(f, text=t),
+        )
+    except Exception as e:
+        barra.empty()
+        st.error(f"Não foi possível gerar as mídias: {e}")
+        return
+    barra.empty()
+    core.registrar_post(db, pacote)
+    item["status"] = "Gerado"
+    salvar()
+    st.session_state.ultimo_post = pacote["id"]
+    st.rerun()
+
+
+def editor(item: dict):
+    iid, v = item["id"], item.get("v", 0)
+    with st.expander("✏️ Editar texto, pontos do Reel e legendas da matéria"):
+        key_res = f"res_val_{iid}"
+        if key_res not in st.session_state:
+            st.session_state[key_res] = item["resumo"]
+
+        st.markdown("**Formatação rápida do Resumo (Story / Feed / Reel):**")
+        c_op1, c_op2, _ = st.columns([1.2, 1.2, 3])
+        if c_op1.button("📋 Formatar em Tópicos", key=f"btn_top_{iid}"):
+            txt_atual = st.session_state[key_res]
+            import re
+            
+            # Divide explicitamente por blocos iniciados por número (ex: 1 -, 2 -, etc.)
+            itens_brutos = re.split(r'(?=\b\d+\s*[-–—)]\s*)', txt_atual)
+            linhas = []
+            for item_b in itens_brutos:
+                item_limpo = item_b.strip()
+                if item_limpo:
+                    item_limpo = re.sub(r'^\d+\s*[-–—)]\s*', '', item_limpo).strip()
+                    if item_limpo:
+                        linhas.append(item_limpo)
+            
+            if len(linhas) <= 1:
+                partes = [p.strip() for p in txt_atual.replace(';', '.').split('.') if p.strip()]
+                linhas = [re.sub(r'^\d+\s*[-–—)]\s*', '', p).strip() for p in partes if p.strip()]
+
+            if not linhas:
+                linhas = [txt_atual]
+
+            topicos_fmt = []
+            for idx_t, l in enumerate(linhas, 1):
+                l_limpa = l.rstrip('.')
+                if l_limpa:
+                    topicos_fmt.append(f"{idx_t} - {l_limpa}.")
+            
+            st.session_state[key_res] = "\n".join(topicos_fmt)
+            item["resumo"] = st.session_state[key_res]
+            salvar()
+            st.rerun()
+            
+        if c_op2.button("📄 Texto Corrido", key=f"btn_corr_{iid}"):
+            txt_atual = st.session_state[key_res]
+            linhas_limpas = []
+            for l in txt_atual.splitlines():
+                limpo = l.lstrip("123456789.-) ").strip()
+                if limpo:
+                    linhas_limpas.append(limpo)
+            st.session_state[key_res] = " ".join(linhas_limpas)
+            item["resumo"] = st.session_state[key_res]
+            salvar()
+            st.rerun()
+
+        with st.form(f"form_ed_{iid}_{v}"):
+            idx = core.CATEGORIAS.index(item["categoria"]) if item["categoria"] in core.CATEGORIAS else 0
+            categoria = st.selectbox("Categoria", core.CATEGORIAS, index=idx)
+            destaque = st.text_input("Chamada em destaque (grande na arte)", item["destaque"])
+            
+            st.markdown("**Resumo (aparece no Story, no Feed e na Cena 2 do Reel)**")
+            resumo = st.text_area("Resumo editável", value=st.session_state[key_res], height=160, key=f"txt_area_res_{iid}", label_visibility="collapsed")
+            st.session_state[key_res] = resumo
+
+            pontos = st.text_area("Pontos do Reel — um por linha, até 3 (vazio = usa as frases do resumo)", "\n".join(item.get("pontos", [])), height=100)
+            cta_reel = st.text_input("CTA do Reel (frase de chamada final no vídeo)", item.get("cta_reel", ""))
+            fonte = st.text_input("Fonte (veículo)", item["fonte"])
+            leg_feed = st.text_area("Legenda do Feed (vazio = automática)", item.get("legenda_feed", ""), height=130)
+            leg_reel = st.text_area("Legenda do Reel (vazio = automática)", item.get("legenda_reel", ""), height=90)
+            ok = st.form_submit_button("💾 Salvar alterações", type="primary")
+        if ok:
+            item.update(
+                categoria=categoria, 
+                destaque=destaque.strip().upper(), 
+                resumo=resumo.strip(), 
+                cta_reel=cta_reel.strip(),
+                fonte=fonte.strip() or "Imprensa",
+                pontos=[p.strip() for p in pontos.splitlines() if p.strip()][:3],
+                legenda_feed=leg_feed.strip(), 
+                legenda_reel=leg_reel.strip(),
+            )
+            item["v"] = v + 1
+            salvar()
+            st.rerun()
+
+        st.markdown("---")
+        col_img1, col_img2 = st.columns([2, 1])
+        with col_img1:
+            st.markdown("**🎨 Imagem de Fundo (Gerada por IA)**")
+            st.caption("A IA cria uma imagem de alta resolução com iluminação profissional baseada no contexto desta notícia.")
+        with col_img2:
+            if st.button("🔄 Solicitar nova imagem", key=f"nova_img_{iid}", type="secondary"):
+                item["foto_seed"] = int(time.time())
+                item["v"] = v + 1
+                salvar()
+                st.success("Nova imagem gerada com sucesso! Gere as mídias novamente para aplicar.")
+                st.rerun()
+
+        st.markdown("**✨ Sugestão com IA (opcional)**")
+        url_ia = st.text_input("URL da matéria (opcional — a IA lê o link se informado)", value=item.get("url", ""), key=f"url_ia_{iid}")
+        texto = st.text_area("Ou cole o texto da matéria para a IA resumir com fidelidade", key=f"txt_{iid}", height=110)
+        if not core.ia_disponivel():
+            st.caption("Para ativar: configure a chave de IA nas variáveis de ambiente.")
+        if st.button("✨ Sugerir chamada, resumo, pontos e legendas", key=f"ia_{iid}", disabled=not core.ia_disponivel()):
+            with st.spinner("Lendo matéria e consultando a IA…"):
+                try:
+                    texto_para_ia = texto
+                    if url_ia.strip() and not texto.strip():
+                        texto_para_ia = core.extrair_texto_url(url_ia.strip())
+                    
+                    sug = core.ia_sugerir({**item, "url": url_ia.strip() or item.get("url", "")}, texto_para_ia)
+                except Exception as e:
+                    st.error(f"A IA não respondeu: {e}")
+                else:
+                    item.update({k: val for k, val in sug.items() if val})
+                    if url_ia.strip():
+                        item["url"] = url_ia.strip()
+                    item["v"] = v + 1
+                    salvar()
                     st.rerun()
+
+
+def card_item(item: dict):
+    iid = item["id"]
+    with st.container(border=True):
+        esq, dir_ = st.columns([3, 2])
+        with esq:
+            st.caption(f"{ICONE.get(item['status'], '')} {item['status']} • {item['categoria']} • {core.fmt_data(item['data'])}")
+            st.markdown(f"**{esc(item['destaque'])}**")
+            st.markdown(f"### {esc(item['titulo'])}")
+            if item["resumo"]:
+                st.write(esc(item["resumo"]))
+            else:
+                st.warning("Sem resumo. Abra “Editar” e preencha antes de aprovar.")
+            if item.get("url"):
+                st.markdown(f"🔗 [Abrir matéria original]({item['url']}) • {esc(item['fonte'])}")
+        with dir_:
+            chave = f"corr_{iid}"
+            default_vals = [c for c in ativos if c in corretores]
+            if chave in st.session_state:
+                val_atual = [c for c in st.session_state[chave] if c in corretores]
+                if not val_atual:
+                    val_atual = default_vals
+            else:
+                val_atual = default_vals
+            escolhidos = st.multiselect("Corretores nas peças", list(corretores), default=val_atual, key=chave, max_selections=3) or default_vals
+
+            b1, b2, b3 = st.columns(3)
+            with b1:
+                if item["status"] == "Rascunho":
+                    pronto = bool(item["destaque"] and item["resumo"])
+                    if cheio(st.button, "✅ Aprovar", key=f"ap_{iid}", disabled=not pronto) and pronto:
+                        item["status"] = "Aprovado"
+                        salvar()
+                        st.rerun()
+                elif cheio(st.button, "↩️ Reabrir", key=f"re_{iid}"):
+                    item["status"] = "Rascunho"
+                    salvar()
+                    st.rerun()
+            with b2:
+                rotulo = "🔁 Gerar de novo" if item["status"] == "Gerado" else "🎬 Gerar 3 mídias"
+                livre = item["status"] != "Rascunho"
+                if cheio(st.button, rotulo, key=f"gen_{iid}", disabled=not livre) and livre:
+                    gerar(item, escolhidos)
+            with b3:
+                if cheio(st.button, "🗑️ Excluir", key=f"del_{iid}"):
+                    db["noticias"] = [n for n in db["noticias"] if n["id"] != iid]
+                    salvar()
+                    st.rerun()
+        editor(item)
+
+
+with tab_var:
+    st.subheader("Varredura de notícias do mercado imobiliário")
+    with st.container(border=True):
+        cA, cB = st.columns([1, 2])
+        janela = cA.selectbox("Período", list(core.JANELAS), index=0)
+        assuntos_selecionados = cB.multiselect("Assuntos", list(consultas.keys()), default=list(consultas.keys()))
+        if st.button("🔄 Executar varredura", type="primary", disabled=not assuntos_selecionados):
+            with st.spinner("Buscando e filtrando matérias…"):
+                res, erros, stats = core.varrer(assuntos_selecionados, consultas, core.JANELAS[janela], ignorar=db["vistas"])
+            st.session_state.descobertas, st.session_state.erros_varredura, st.session_state.stats_varredura = res, erros, stats
+
+    for e in st.session_state.erros_varredura:
+        st.warning(f"Falha ao consultar: {e}")
+    s = st.session_state.stats_varredura
+    if s:
+        st.caption(f"{s['coletadas']} coletadas → {s['relevantes']} do setor imobiliário → {s['exibidas']} exibidas")
+    if s and not st.session_state.descobertas:
+        st.info("Nada novo neste período. Tente ampliar o período ou use o cadastro manual abaixo.")
+
+    for n in list(st.session_state.descobertas):
+        with st.container(border=True):
+            st.markdown(f"**[{n['categoria']}]** {esc(n['titulo'])}")
+            st.caption(f"{esc(n['fonte'])} • {core.fmt_data(n['data'])} ({core.idade(n['data'])})")
+            if n["resumo"]:
+                st.write(esc(n["resumo"]))
+            st.markdown(f"🔗 [Abrir matéria original]({n['url']})")
+            b1, b2, _ = st.columns([1, 1, 3])
+            if b1.button("➕ Adicionar", key=f"add_{n['uid']}"):
+                core.nova_noticia(db, n)
+                salvar()
+                st.session_state.descobertas = [x for x in st.session_state.descobertas if x["uid"] != n["uid"]]
+                st.rerun()
+            if b2.button("🚫 Descartar", key=f"dsc_{n['uid']}"):
+                core.marcar_vista(db, n["uid"])
+                salvar()
+                st.session_state.descobertas = [x for x in st.session_state.descobertas if x["uid"] != n["uid"]]
+                st.rerun()
+
+    with st.expander("✍️ Cadastro manual de matéria"):
+        with st.form("form_manual", clear_on_submit=True):
+            m_cat = st.selectbox("Categoria", core.CATEGORIAS)
+            m_tit = st.text_input("Título")
+            m_des = st.text_input("Chamada em destaque (vazio = usa o título)")
+            m_res = st.text_area("Resumo")
+            m_fon = st.text_input("Fonte (veículo)")
+            m_url = st.text_input("Link da matéria original", placeholder="https://...")
+            enviado = st.form_submit_button("Salvar na biblioteca", type="primary")
+        if enviado:
+            if m_tit.strip() and m_url.strip():
+                core.nova_noticia(db, {
+                    "categoria": m_cat, "titulo": m_tit, "destaque": m_des.strip().upper(),
+                    "resumo": m_res, "fonte": m_fon, "url": m_url.strip(),
+                })
+                salvar()
+                st.rerun()
+            else:
+                st.error("Título e link da matéria original são obrigatórios.")
+
+
+with tab_bib:
+    cT1, cT2 = st.columns([3, 1])
+    cT1.subheader("Biblioteca de matérias")
+    with cT2:
+        with st.popover("🗑️ Limpar biblioteca"):
+            st.warning("Remove todas as matérias. As mídias já geradas continuam em Publicações.")
+            if st.button("Confirmar limpeza", key="conf_limpar"):
+                db["noticias"] = []
+                salvar()
+                st.rerun()
+
+    post_ativo = core.obter_post(db, st.session_state.ultimo_post) if st.session_state.ultimo_post else None
+    if post_ativo:
+        with st.container(border=True):
+            st.markdown(f"### ✅ Pacote pronto: {esc(post_ativo['titulo'])}")
+            painel_pacote(post_ativo, "ult")
+            if st.button("✖️ Fechar pacote", key="fechar_ult"):
+                st.session_state.ultimo_post = None
+                st.rerun()
         st.divider()
 
-    filt = st.selectbox("Filtrar", ["Todos", "Rascunho", "Aprovado"])
-    shown = [i for i in lista_atual if filt == "Todos" or i.get("status") == filt]
-    
-    if not shown:
-        st.info("Nenhum conteúdo encontrado.")
-    else:
-        for idx_item, item in enumerate(shown):
-            with st.container(border=True):
-                left, right = st.columns([3, 2])
-                with left:
-                    st.markdown(f"**{item.get('destaque', '')}**")
-                    st.markdown(f"### {item.get('titulo', '')}")
-                    st.write(item.get("resumo", ""))
-                    st.caption(f"{item.get('categoria', '')} • {item.get('data', '')}")
-                    if item.get("url"):
-                        st.markdown(f"🔗 [Acessar link original da matéria]({item.get('url')})")
-                
-                with right:
-                    corretores_story = st.multiselect(
-                        "Corretores para o Story:",
-                        options=corretores_ativos,
-                        default=corretores_ativos[:1],
-                        key=f"corr_{idx_item}"
-                    )
-                    if not corretores_story:
-                        corretores_story = [corretores_ativos[0]]
-                    
-                    col_b1, col_b2, col_b3 = st.columns(3)
-                    with col_b1:
-                        if st.button("Gerar Story", key=f"s_{idx_item}", use_container_width=True):
-                            img_bytes = make_story(item, corretores_story)
-                            fname = f"story_{datetime.now().strftime('%H%M%S')}.png"
-                            
-                            st.session_state.story_ativo = {
-                                "bytes": img_bytes, "titulo": item.get('titulo', ''), "filename": fname
-                            }
-                            st.session_state.historico_stories.insert(0, {
-                                "titulo": item.get('titulo', ''), "destaque": item.get('destaque', ''),
-                                "categoria": item.get('categoria', ''), "data_geracao": datetime.now().strftime('%d/%m/%Y'),
-                                "bytes": img_bytes, "filename": fname
-                            })
-                            st.rerun()
+    filtro = st.selectbox("Filtrar por status", ["Todos", "Rascunho", "Aprovado", "Gerado"])
+    exibir = [n for n in reversed(noticias) if filtro == "Todos" or n["status"] == filtro]
+    if not exibir:
+        st.info("Nenhuma matéria aqui. Use a aba **Varredura** para buscar notícias ou faça um cadastro manual.")
+    for item in exibir:
+        card_item(item)
 
-                    with col_b2:
-                        if item.get("status") != "Aprovado":
-                            if st.button("Aprovar", key=f"a_{idx_item}", use_container_width=True):
-                                item["status"] = "Aprovado"
-                                st.rerun()
-                        else:
-                            st.success("Aprovado")
 
-                    with col_b3:
-                        if st.button("🗑️ Excluir", key=f"d_{idx_item}", use_container_width=True):
-                            st.session_state.dados_noticias.remove(item)
-                            st.rerun()
-
-with tab2:
-    st.subheader("Varredura Setorial Filtrada (Mercado Imobiliário)")
-    
-    with st.container(border=True):
-        st.markdown("### 🌐 Coleta Inteligente com Filtro de Relevância")
-        st.write("Clique abaixo para buscar na imprensa apenas notícias que citem termos do setor imobiliário, habitação, juros ou construção civil.")
-        
-        if st.button("🔄 Executar Varredura Imobiliária", type="primary"):
-            noticias_extraidas = []
-            
-            # Feeds direcionados exclusivamente para busca imobiliária e de crédito
-            feeds_imobiliarios = [
-                ("https://news.google.com/rss/search?q=mercado+imobiliario+OR+imoveis+OR+financiamento+imobiliario+OR+fundos+imobiliarios+FII&hl=pt-BR&gl=BR&ceid=BR:pt-415", "Google News (Setor Imobiliário)")
-            ]
-            
-            # Palavras-chave obrigatórias para garantir que a notícia é do setor
-            termos_obrigatorios = [
-                "imóvel", "imóveis", "imobiliário", "imobiliaria", "habitação", 
-                "habitacao", "financiamento", "aluguel", "aluguer", "construção", 
-                "construcao", "construtora", "fii", "fundos imobiliários", "terreno", "hipoteca"
-            ]
-            
-            for url_feed, nome_veiculo_padrao in feeds_imobiliarios:
-                try:
-                    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-                    req = urllib.request.Request(url_feed, headers=headers)
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        xml_data = resp.read()
-                        root = ET.fromstring(xml_data)
-                        
-                        for item in root.findall('.//item'):
-                            link_node = item.find('link')
-                            link_original = link_node.text if link_node is not None else ""
-                            if not link_original or 'google.com' in link_original:
-                                continue
-                                
-                            titulo_original = item.find('title').text if item.find('title') is not None else ""
-                            descricao = item.find('description').text if item.find('description') is not None else ""
-                            data_pub_str = item.find('pubDate').text if item.find('pubDate') is not None else str(date.today())
-                            
-                            texto_completo = (titulo_original + " " + descricao).lower()
-                            
-                            # VALIDAÇÃO RIGOROSA: Apenas aceita se contiver ao menos uma palavra-chave do setor
-                            is_relevante = any(termo in texto_completo for termo in termos_obrigatorios)
-                            if not is_relevante:
-                                continue  # Descarta notícias irrelevantes (como ENEM, política geral, polícia, etc.)
-                            
-                            partes = titulo_original.split(" - ")
-                            titulo_limpo = partes[0]
-                            veiculo = partes[1] if len(partes) > 1 else "Imprensa Especializada"
-                            
-                            resumo_real = f"Análise recente da imprensa sobre o mercado imobiliário e tendências do setor."
-                            if len(descricao) > 30 and "<" not in descricao:
-                                resumo_real = descricao.strip()
-
-                            noticias_extraidas.append({
-                                "categoria": "Lançamentos imobiliários" if "lancamento" in texto_completo or "construcao" in texto_completo else "Juros e financiamento",
-                                "titulo": titulo_limpo,
-                                "destaque": titulo_limpo.upper(),
-                                "resumo": resumo_real,
-                                "fonte": veiculo,
-                                "url": link_original,
-                                "data": data_pub_str[:16]
-                            })
-                except Exception:
-                    continue
-            
-            vistos = set()
-            unicas = []
-            for n in noticias_extraidas:
-                if n['url'] not in vistos:
-                    vistos.add(n['url'])
-                    unicas.append(n)
-            
-            st.session_state.noticias_descobertas = unicas[:25]
-            
-            if st.session_state.noticias_descobertas:
-                st.success(f"{len(st.session_state.noticias_descobertas)} matérias estritamente imobiliárias capturadas com sucesso!")
-            else:
-                st.warning("Nenhuma matéria imobiliária recente encontrada neste ciclo. Utilize o cadastro manual abaixo para registrar sua pauta.")
-
-    if st.session_state.noticias_descobertas:
-        st.markdown(f"#### 📋 {len(st.session_state.noticias_descobertas)} Matérias Filtradas")
-        for idx_n, n_item in enumerate(st.session_state.noticias_descobertas):
-            with st.container(border=True):
-                st.markdown(f"**[{n_item.get('categoria', '')}]** {n_item.get('titulo', '')}")
-                st.caption(f"Destaque: {n_item.get('destaque', '')} | Veículo: {n_item.get('fonte', '')} | Publicado em: {n_item.get('data', '')}")
-                st.write(f"**Resumo:** {n_item.get('resumo', '')}")
-                if n_item.get('url'):
-                    st.markdown(f"🔗 **[Abrir matéria original direta]({n_item.get('url')})**")
-                
-                if st.button(f"➕ Adicionar à biblioteca", key=f"add_lote_{idx_n}"):
-                    st.session_state.dados_noticias.append({
-                        "id": st.session_state.proximo_id,
-                        "categoria": n_item.get('categoria', 'Mercado regional'),
-                        "titulo": n_item.get('titulo', ''),
-                        "destaque": n_item.get('destaque', ''),
-                        "resumo": n_item.get('resumo', ''),
-                        "fonte": n_item.get('fonte', 'Imprensa'),
-                        "url": n_item.get('url', 'https://www.google.com'),
-                        "data": str(date.today()),
-                        "regiao": "Brasil",
-                        "status": "Rascunho",
-                        "verificado": True
-                    })
-                    st.session_state.proximo_id += 1
-                    st.success("Matéria adicionada com sucesso à biblioteca!")
+with tab_hist:
+    st.subheader("📚 Pacotes gerados")
+    if not db["posts"]:
+        st.info("Nenhum pacote gerado ainda.")
+    for p in db["posts"][:30]:
+        with st.container(border=True):
+            cI, cB = st.columns([4, 1])
+            with cI:
+                st.markdown(f"**{esc(p['destaque'] or p['titulo'])}**")
+                st.caption(f"{p['categoria']} • gerado em {core.fmt_data(p['data_geracao'])} • pasta: `{p['pasta']}`")
+                if st.checkbox("👁️ Ver pacote completo", key=f"ver_{p['id']}"):
+                    painel_pacote(p, f"h{p['id']}")
+            with cB:
+                if st.button("🗑️ Apagar pacote", key=f"apg_{p['id']}"):
+                    core.apagar_post(db, p["id"])
+                    if st.session_state.ultimo_post == p["id"]:
+                        st.session_state.ultimo_post = None
+                    salvar()
                     st.rerun()
-
-    st.divider()
-    st.markdown("#### ✍️ Cadastro Manual:")
-    
-    lista_categorias = [
-        "Juros e financiamento", 
-        "Bancos e crédito", 
-        "Lançamentos imobiliários",
-        "Valorização de bairros", 
-        "Mercado regional", 
-        "Investimento imobiliário",
-        "Economia", 
-        "Legislação", 
-        "Infraestrutura", 
-        "Conteúdo educativo"
-    ]
-    
-    with st.form("new_item", clear_on_submit=False):
-        categoria = st.selectbox("Categoria", lista_categorias)
-        titulo = st.text_input("Título")
-        destaque = st.text_input("Chamada em Destaque (MAIÚSCULAS)")
-        resumo = st.text_area("Resumo Detalhado da Matéria")
-        fonte = st.text_input("Fonte")
-        url_manual = st.text_input("Link direto da matéria original", placeholder="https://...")
-        submitted = st.form_submit_button("Salvar na biblioteca", type="primary")
-        
-        if submitted and titulo and destaque and url_manual:
-            st.session_state.dados_noticias.append({
-                "id": st.session_state.proximo_id, 
-                "categoria": categoria, 
-                "titulo": titulo,
-                "destaque": destaque, 
-                "resumo": resumo, 
-                "fonte": fonte, 
-                "url": url_manual, 
-                "status": "Rascunho", 
-                "data": str(date.today()), 
-                "verificado": True
-            })
-            st.session_state.proximo_id += 1
-            st.success("Salvo com sucesso na biblioteca!")
-            st.rerun()
-        elif submitted:
-            st.error("Preencha os campos obrigatórios, incluindo o link direto da matéria original.")
-
-with tab3:
-    col_th1, col_th2 = st.columns([3, 1])
-    with col_th1:
-        st.subheader("📚 Histórico de Publicações")
-    with col_th2:
-        if st.session_state.historico_stories:
-            if st.button("🗑️ Limpar todo o histórico", use_container_width=True):
-                st.session_state.historico_stories = []
-                st.success("Histórico limpo!")
-                st.rerun()
-                
-    if not st.session_state.historico_stories:
-        st.info("Nenhum Story gerado ainda.")
-    else:
-        for idx, story_hist in enumerate(st.session_state.historico_stories):
-            with st.container(border=True):
-                col_info, col_img = st.columns([3, 1])
-                with col_info:
-                    st.markdown(f"**{story_hist['destaque']}**")
-                    st.markdown(f"### {story_hist['titulo']}")
-                    st.caption(f"Categoria: {story_hist['categoria']} • Gerado em: {story_hist['data_geracao']}")
-                    
-                    col_h1, col_h2 = st.columns(2)
-                    with col_h1:
-                        st.download_button(
-                            "📥 Baixar PNG",
-                            data=story_hist['bytes'],
-                            file_name=story_hist['filename'],
-                            mime="image/png",
-                            key=f"hist_down_{idx}"
-                        )
-                    with col_h2:
-                        if st.button("🗑️ Apagar Story", key=f"del_hist_{idx}", use_container_width=True):
-                            st.session_state.historico_stories.pop(idx)
-                            st.success("Story removido do histórico!")
-                            st.rerun()
-                with col_img:
-                    st.image(story_hist['bytes'], width=150)
